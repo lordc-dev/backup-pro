@@ -1,0 +1,13 @@
+node_modules/
+src/
+__tests__/
+.github/
+.eslintrc*
+eslint.config.js
+tsconfig.json
+vitest.config.*
+*.test.ts
+*.spec.ts
+.git*
+.DS_Store
+*.log

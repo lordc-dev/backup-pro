@@ -1,0 +1,39 @@
+import * as path from 'node:path';
+import * as os from 'node:os';
+
+/** Configuration for the backup MCP server. */
+export interface BackupConfig {
+  backupDir: string;
+  autoSaveIntervalMs: number;
+  maxPreviewChars: number;
+  allowedRoots: string[];
+  logLevel: 'debug' | 'info' | 'warn' | 'error';
+  batchConcurrency: number;
+}
+
+const HOME_DIR = os.homedir();
+
+function parseAllowedRoots(): string[] {
+  const raw = process.env.BACKUP_ALLOWED_ROOTS || '';
+  if (!raw) return [];
+  return raw
+    .split(':')
+    .map(r => r.startsWith('~/') ? path.join(HOME_DIR, r.substring(1)) : r)
+    .filter(r => r.length > 0);
+}
+
+function parseLogLevel(): 'debug' | 'info' | 'warn' | 'error' {
+  const raw = process.env.LOG_LEVEL?.toLowerCase();
+  if (raw === 'debug' || raw === 'info' || raw === 'warn' || raw === 'error') return raw;
+  return 'info';
+}
+
+/** Resolved server configuration derived from environment variables and defaults. */
+export const config: BackupConfig = {
+  backupDir: process.env.BACKUP_DIR || path.join(HOME_DIR, '.mcp-backups'),
+  autoSaveIntervalMs: Number.parseInt(process.env.AUTO_SAVE_INTERVAL_MS || '30000', 10),
+  maxPreviewChars: Number.parseInt(process.env.MAX_PREVIEW_CHARS || '10000', 10),
+  allowedRoots: parseAllowedRoots(),
+  logLevel: parseLogLevel(),
+  batchConcurrency: Number.parseInt(process.env.BATCH_CONCURRENCY || '5', 10),
+};

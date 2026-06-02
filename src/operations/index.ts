@@ -1,0 +1,15 @@
+export { createBackup } from './create.js';
+export { restoreBackup } from './restore.js';
+export { listBackups } from './list.js';
+export { searchBackups } from './search.js';
+export { cleanupBackups } from './cleanup.js';
+export { getTags, getTagStats, addTagsToBackup, removeTagsFromBackup } from './tags.js';
+export { getBackupStats, type StatsResult } from './stats.js';
+export { diffBackup, type DiffResult } from './diff.js';
+export { previewBackup, type PreviewResult } from './preview.js';
+export { getBackup, formatBackupDetails, type BackupDetails } from './get.js';
+export { deleteBackup, deleteBackups, type DeleteResult } from './delete.js';
+export { verifyBackup, formatVerifyResult, type VerifyResult } from './verify.js';
+export { batchBackup, formatBatchResult, type BatchBackupResult } from './batch.js';
+export { findDuplicates, formatDuplicatesResult, type DuplicateGroup, type FindDuplicatesResult } from './duplicates.js';
+export { searchBackupContent, type SearchContentParams, type SearchContentResult, type BackupContentMatch } from './search-content.js';

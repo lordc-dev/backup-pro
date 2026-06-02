@@ -1,0 +1,168 @@
+import { BackupStore } from '../utils/store.js';
+import {
+  isRipgrepAvailable,
+  ensureRipgrep,
+  executeRipgrepWithLimit,
+  requiresPCRE2,
+  validateRegexPattern,
+} from '../search/index.js';
+import { rgArgs } from '../search/ripgrep-args.js';
+import type { ContentSearchResult } from '../search/ripgrep-types.js';
+import { BACKUP_DIR } from '../utils/constants.js';
+
+export interface SearchContentParams {
+  pattern: string;
+  ignoreCase?: boolean;
+  maxResults?: number;
+  contextLines?: number;
+}
+
+export interface BackupContentMatch {
+  backupId: string;
+  originalPath: string;
+  description: string;
+  tags: string[];
+  timestamp: string;
+  line: number;
+  content: string;
+  matchStart: number;
+  matchEnd: number;
+}
+
+export interface SearchContentResult {
+  query: string;
+  totalMatches: number;
+  matches: BackupContentMatch[];
+  unavailable?: boolean;
+  unavailableReason?: string;
+}
+
+function parseJsonResults(output: string): ContentSearchResult[] {
+  const results: ContentSearchResult[] = [];
+
+  if (!output.trim()) return results;
+
+  const lines = output.trim().split("\n");
+  for (const line of lines) {
+    try {
+      const data = JSON.parse(line);
+      if (data.type === "match") {
+        const submatches = (data.data.submatches || []).map((sm: any) => ({
+          text: sm.match?.text ?? "",
+          start: sm.start ?? 0,
+          end: sm.end ?? 0,
+        }));
+
+        results.push({
+          file: data.data.path?.text ?? "",
+          line: data.data.line_number ?? 0,
+          content: (data.data.lines?.text ?? "").replace(/\n$/, ""),
+          submatches,
+        });
+      }
+    } catch {
+      // skip malformed lines
+    }
+  }
+
+  return results;
+}
+
+export async function searchBackupContent(
+  params: SearchContentParams,
+  backups: BackupStore
+): Promise<SearchContentResult> {
+  const {
+    pattern,
+    ignoreCase = true,
+    maxResults = 50,
+    contextLines = 0,
+  } = params;
+
+  const emptyResult: SearchContentResult = {
+    query: pattern,
+    totalMatches: 0,
+    matches: [],
+  };
+
+  const rgAvailable = await isRipgrepAvailable();
+  if (!rgAvailable) {
+    return {
+      ...emptyResult,
+      unavailable: true,
+      unavailableReason: 'Ripgrep (rg) is not installed. Install via: brew install ripgrep (macOS) or apt-get install ripgrep (Linux)',
+    };
+  }
+
+  const pathToId = new Map<string, string>();
+  for (const [id, backup] of backups.entries()) {
+    pathToId.set(backup.backupPath, id);
+  }
+
+  let rgResults: ContentSearchResult[];
+  try {
+    const validation = validateRegexPattern(pattern, { pcre2: requiresPCRE2(pattern) });
+    if (!validation.valid) {
+      return {
+        ...emptyResult,
+        unavailable: true,
+        unavailableReason: validation.errorMessage ?? `Invalid search pattern: ${pattern}`,
+      };
+    }
+
+    const needsPCRE2 = requiresPCRE2(pattern);
+
+    const args = rgArgs()
+      .json()
+      .noMessages()
+      .context(contextLines)
+      .ignoreCase(ignoreCase)
+      .maxCount(maxResults * 2)
+      .glob("*.backup")
+      .pattern(pattern)
+      .path(BACKUP_DIR)
+      .build();
+
+    const output = await executeRipgrepWithLimit(args, 10 * 1024 * 1024, needsPCRE2);
+    rgResults = parseJsonResults(output);
+  } catch (error) {
+    return {
+      ...emptyResult,
+      unavailable: true,
+      unavailableReason: `Search failed: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+
+  const matches: BackupContentMatch[] = [];
+
+  for (const result of rgResults) {
+    const backupId = pathToId.get(result.file);
+
+    if (backupId) {
+      const backup = backups.get(backupId);
+      if (backup) {
+        matches.push({
+          backupId,
+          originalPath: backup.metadata.originalPath,
+          description: backup.metadata.description,
+          tags: backup.metadata.tags || [],
+          timestamp: backup.metadata.timestamp,
+          line: result.line,
+          content: result.content,
+          matchStart: result.submatches[0]?.start ?? 0,
+          matchEnd: result.submatches[0]?.end ?? 0,
+        });
+      }
+    }
+
+    if (matches.length >= maxResults) {
+      break;
+    }
+  }
+
+  return {
+    query: pattern,
+    totalMatches: matches.length,
+    matches,
+  };
+}
