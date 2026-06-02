@@ -18,7 +18,6 @@
   },
   "scripts": {
     "build": "tsc && node -e \"require('fs').chmodSync('dist/index.js', '755')\"",
-    "prepare": "husky",
     "watch": "tsc --watch",
     "inspector": "npx @modelcontextprotocol/inspector dist/index.js",
     "test": "vitest run",
@@ -54,7 +53,6 @@
     "eslint": "^10.4.0",
     "eslint-plugin-vitest": "^0.5.4",
     "globals": "^17.6.0",
-    "husky": "^9.1.7",
     "lint-staged": "^17.0.5",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.60.0",
