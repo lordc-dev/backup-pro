@@ -27,7 +27,9 @@ export async function previewBackup(
   backups: BackupStore,
   options: { head?: number; tail?: number; maxChars?: number } = {}
 ): Promise<PreviewResult> {
-  const { head, tail, maxChars = config.maxPreviewChars } = options;
+  const maxCharsCap = 100_000;
+  const { head, tail, maxChars: rawmaxChars = config.maxPreviewChars } = options;
+  const maxChars = Math.min(rawmaxChars, maxCharsCap);
 
   const backup = backups.get(backupId);
   if (!backup) {

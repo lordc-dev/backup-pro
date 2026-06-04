@@ -20,18 +20,19 @@ function parseJsonResults(output: string): Array<{
   const lines = output.trim().split("\n");
   for (const line of lines) {
     try {
-      const data = JSON.parse(line);
-      if (data.type === "match") {
-        const submatches = (data.data.submatches || []).map((sm: any) => ({
+      const data: unknown = JSON.parse(line);
+      if (typeof data === 'object' && data !== null && 'type' in data && (data as { type: string }).type === 'match' && 'data' in data) {
+        const d = data as { data: { submatches?: Array<{ match?: { text?: string }; start?: number; end?: number }>; path?: { text?: string }; line_number?: number; lines?: { text?: string } } };
+        const submatches = (d.data.submatches ?? []).map((sm) => ({
           text: sm.match?.text ?? "",
           start: sm.start ?? 0,
           end: sm.end ?? 0,
         }));
 
         results.push({
-          file: data.data.path?.text ?? "",
-          line: data.data.line_number ?? 0,
-          content: (data.data.lines?.text ?? "").replace(/\n$/, ""),
+          file: d.data.path?.text ?? "",
+          line: d.data.line_number ?? 0,
+          content: (d.data.lines?.text ?? "").replace(/\n$/, ""),
           submatches,
         });
       }
