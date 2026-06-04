@@ -15,9 +15,12 @@ export class BackupStore extends Map<string, BackupInfo> {
   /** Creates and initializes a BackupStore by loading persisted metadata. */
   static async create(): Promise<BackupStore> {
     const store = new BackupStore();
-    const loaded = await loadBackupMetadata();
+    const { backups: loaded, integrityWarning } = await loadBackupMetadata();
     for (const [key, value] of loaded.entries()) {
       super.prototype.set.call(store, key, value);
+    }
+    if (integrityWarning) {
+      log.warn('store', integrityWarning);
     }
     return store;
   }

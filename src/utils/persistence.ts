@@ -1,4 +1,7 @@
 import * as path from 'node:path';
+import * as os from 'node:os';
+import * as fs from 'node:fs/promises';
+import { createHmac, randomBytes } from 'node:crypto';
 import { readJSON, writeJSON, pathExists, ensureDir } from './fs.js';
 import { BackupInfo } from '../types/index.js';
 import { BACKUP_DIR } from './constants.js';
@@ -6,10 +9,32 @@ import { CURRENT_SCHEMA_VERSION } from '../types/index.js';
 import { log } from './logger.js';
 
 const METADATA_FILE = path.join(BACKUP_DIR, 'metadata.json');
+const METADATA_KEYS_FILE = path.join(os.homedir(), '.config', 'backup-pro', '.metadata-key');
+
+/** Generates or loads a persistent HMAC key for metadata integrity. */
+async function getIntegrityKey(): Promise<string> {
+  if (await pathExists(METADATA_KEYS_FILE)) {
+    const key = await readJSON(METADATA_KEYS_FILE) as { key: string };
+    if (key?.key) return key.key;
+  }
+  const key = randomBytes(32).toString('hex');
+  await ensureDir(path.dirname(METADATA_KEYS_FILE));
+  await writeJSON(METADATA_KEYS_FILE, { key }, { spaces: 0 });
+  // SECURITY: Restrict key file permissions to owner-only to prevent metadata tampering
+  await fs.chmod(METADATA_KEYS_FILE, 0o600);
+  return key;
+}
+
+/** Computes an HMAC-SHA256 of the backup entries for integrity verification. */
+function computeMetadataHmac(entries: Record<string, BackupInfo>, key: string): string {
+  const data = JSON.stringify(entries, Object.keys(entries).sort());
+  return createHmac('sha256', key).update(data).digest('hex');
+}
 
 interface StoredMetadata {
   schemaVersion?: number;
   backups?: Record<string, BackupInfo>;
+  integrity?: string;
 }
 
 function migrateMetadata(data: StoredMetadata): Map<string, BackupInfo> {
@@ -23,23 +48,33 @@ function migrateMetadata(data: StoredMetadata): Map<string, BackupInfo> {
   return migrated;
 }
 
-export async function loadBackupMetadata(): Promise<Map<string, BackupInfo>> {
+export async function loadBackupMetadata(): Promise<{ backups: Map<string, BackupInfo>; integrityWarning?: string }> {
   try {
     if (!(await pathExists(METADATA_FILE))) {
-      return new Map();
+      return { backups: new Map() };
     }
     
     const data: StoredMetadata = await readJSON(METADATA_FILE);
-    if (data.backups) {
-      return migrateMetadata(data);
+    const entries = data.backups ?? (data as unknown as Record<string, BackupInfo>);
+    const backups = migrateMetadata({ backups: entries });
+
+    if (data.integrity) {
+      try {
+        const key = await getIntegrityKey();
+        const expected = computeMetadataHmac(entries, key);
+        if (expected !== data.integrity) {
+          log.warn('persistence', 'Metadata integrity check failed — metadata may have been tampered with');
+          return { backups, integrityWarning: 'Metadata integrity check failed. Backup paths should be re-validated.' };
+        }
+      } catch {
+        log.warn('persistence', 'Could not verify metadata integrity (HMAC key missing or unreadable)');
+      }
     }
     
-    // Legacy format: flat object without schemaVersion
-    const legacy = data as unknown as Record<string, BackupInfo>;
-    return migrateMetadata({ backups: legacy });
+    return { backups };
   } catch (error) {
     log.error('persistence', 'Error loading backup metadata', { error: error instanceof Error ? error.message : String(error) });
-    return new Map();
+    return { backups: new Map() };
   }
 }
 
@@ -48,9 +83,14 @@ export async function saveBackupMetadata(backups: Map<string, BackupInfo>): Prom
     const dir = path.dirname(METADATA_FILE);
     await ensureDir(dir);
     
+    const entries = Object.fromEntries(backups);
+    const key = await getIntegrityKey();
+    const integrity = computeMetadataHmac(entries, key);
+
     const data: StoredMetadata = {
       schemaVersion: CURRENT_SCHEMA_VERSION,
-      backups: Object.fromEntries(backups),
+      backups: entries,
+      integrity,
     };
     await writeJSON(METADATA_FILE, data, { spaces: 2 });
   } catch (error) {
