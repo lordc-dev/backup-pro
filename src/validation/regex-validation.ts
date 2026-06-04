@@ -18,6 +18,49 @@ export interface RegexValidationOptions {
   pcre2?: boolean;
 }
 
+const MAX_PATTERN_LENGTH = 1000;
+const MAX_QUANTIFIER_NESTING = 3;
+const MAX_ALTERNATION_DEPTH = 20;
+
+function measureQuantifierNesting(pattern: string): number {
+  let maxNesting = 0;
+  let currentNesting = 0;
+  for (let i = 0; i < pattern.length; i++) {
+    if (pattern[i] === '(' && i + 1 < pattern.length && pattern[i + 1] !== '?') {
+      currentNesting++;
+      if (currentNesting > maxNesting) maxNesting = currentNesting;
+    } else if (pattern[i] === ')') {
+      currentNesting = Math.max(0, currentNesting - 1);
+    }
+  }
+  return maxNesting;
+}
+
+function countAlternations(pattern: string): number {
+  let count = 0;
+  let inCharClass = false;
+  let escaped = false;
+  for (let i = 0; i < pattern.length; i++) {
+    if (escaped) { escaped = false; continue; }
+    if (pattern[i] === '\\') { escaped = true; continue; }
+    if (pattern[i] === '[') { inCharClass = true; continue; }
+    if (pattern[i] === ']') { inCharClass = false; continue; }
+    if (!inCharClass && pattern[i] === '|') count++;
+  }
+  return count;
+}
+
+function hasReDoSPatterns(pattern: string): string[] {
+  const warnings: string[] = [];
+  if (/\([^)]*[*+][^)]*\)[*+]/.test(pattern)) {
+    warnings.push('Potential ReDoS pattern detected: nested quantifier with backtracking');
+  }
+  if (/\(\[[^\]]*\][*+]\)[*+]/.test(pattern)) {
+    warnings.push('Potential ReDoS pattern detected: character class with nested quantifier');
+  }
+  return warnings;
+}
+
 /**
  * Validates a regex pattern for use with ripgrep
  */
@@ -31,6 +74,15 @@ export function validateRegexPattern(
       errors: ["Pattern must be a non-empty string"],
       warnings: [],
       errorMessage: "Invalid regex pattern: Pattern must be a non-empty string",
+    };
+  }
+
+  if (pattern.length > MAX_PATTERN_LENGTH) {
+    return {
+      valid: false,
+      errors: [`Pattern exceeds maximum length of ${MAX_PATTERN_LENGTH} characters`],
+      warnings: [],
+      errorMessage: `Invalid regex pattern: Pattern too long (${pattern.length} chars, max ${MAX_PATTERN_LENGTH})`,
     };
   }
 
@@ -75,7 +127,39 @@ export function validateRegexPattern(
     };
   }
 
-  const warnings = detectRegexWarnings(pattern);
+  const warnings: string[] = [];
+
+  const nestingDepth = measureQuantifierNesting(pattern);
+  if (nestingDepth > MAX_QUANTIFIER_NESTING) {
+    return {
+      valid: false,
+      errors: [`Regex nesting depth (${nestingDepth}) exceeds maximum (${MAX_QUANTIFIER_NESTING}). Simplify the pattern to prevent excessive backtracking.`],
+      warnings: [],
+      errorMessage: `Invalid regex pattern: Nesting too deep (${nestingDepth} levels, max ${MAX_QUANTIFIER_NESTING})`,
+    };
+  }
+
+  const alternationCount = countAlternations(pattern);
+  if (alternationCount > MAX_ALTERNATION_DEPTH) {
+    return {
+      valid: false,
+      errors: [`Regex has too many alternations (${alternationCount}, max ${MAX_ALTERNATION_DEPTH}). Simplify the pattern.`],
+      warnings: [],
+      errorMessage: `Invalid regex pattern: Too many alternations (${alternationCount}, max ${MAX_ALTERNATION_DEPTH})`,
+    };
+  }
+
+  const redosWarnings = hasReDoSPatterns(pattern);
+  if (redosWarnings.length > 0) {
+    return {
+      valid: false,
+      errors: redosWarnings,
+      warnings: [],
+      errorMessage: `Invalid regex pattern: ${redosWarnings.join('; ')}. Simplify the pattern to prevent catastrophic backtracking.`,
+    };
+  }
+
+  warnings.push(...detectRegexWarnings(pattern));
 
   return {
     valid: true,

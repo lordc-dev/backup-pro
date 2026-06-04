@@ -1,7 +1,6 @@
 import { BackupStore } from '../utils/store.js';
 import {
   isRipgrepAvailable,
-  ensureRipgrep,
   executeRipgrepWithLimit,
   requiresPCRE2,
   validateRegexPattern,
@@ -16,6 +15,8 @@ export interface SearchContentParams {
   maxResults?: number;
   contextLines?: number;
 }
+
+const MAX_PATTERN_LENGTH = 1000;
 
 export interface BackupContentMatch {
   backupId: string;
@@ -84,6 +85,14 @@ export async function searchBackupContent(
     totalMatches: 0,
     matches: [],
   };
+
+  if (pattern.length > MAX_PATTERN_LENGTH) {
+    return {
+      ...emptyResult,
+      unavailable: true,
+      unavailableReason: `Search pattern exceeds maximum length of ${MAX_PATTERN_LENGTH} characters (got ${pattern.length})`,
+    };
+  }
 
   const rgAvailable = await isRipgrepAvailable();
   if (!rgAvailable) {
