@@ -5,3 +5,5 @@ coverage/
 .env*
 .codegraph
 .husky
+.scannerwork
+sonar-project.properties
