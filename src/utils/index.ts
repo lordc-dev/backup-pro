@@ -3,7 +3,6 @@ export * from './formatting.js';
 export * from './fs.js';
 export * from './validate.js';
 export * from './store.js';
-export * from './constants.js';
 export * from './hashing.js';
 export * from './logger.js';
 export * from './config.js';

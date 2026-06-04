@@ -7,7 +7,7 @@ import {
 } from '../search/index.js';
 import { rgArgs } from '../search/ripgrep-args.js';
 import type { ContentSearchResult } from '../search/ripgrep-types.js';
-import { BACKUP_DIR } from '../utils/constants.js';
+import { config } from '../utils/config.js';
 
 export interface SearchContentParams {
   pattern: string;
@@ -38,6 +38,12 @@ export interface SearchContentResult {
   unavailableReason?: string;
 }
 
+function isValidRgMatch(data: unknown): data is { type: 'match'; data: { path?: { text?: string }; line_number?: number; lines?: { text?: string }; submatches?: Array<{ match?: { text?: string }; start?: number; end?: number }> } } {
+  if (typeof data !== 'object' || data === null) return false;
+  const obj = data as Record<string, unknown>;
+  return obj.type === 'match' && typeof obj.data === 'object' && obj.data !== null;
+}
+
 function parseJsonResults(output: string): ContentSearchResult[] {
   const results: ContentSearchResult[] = [];
 
@@ -46,9 +52,9 @@ function parseJsonResults(output: string): ContentSearchResult[] {
   const lines = output.trim().split("\n");
   for (const line of lines) {
     try {
-      const data = JSON.parse(line);
-      if (data.type === "match") {
-        const submatches = (data.data.submatches || []).map((sm: any) => ({
+      const data: unknown = JSON.parse(line);
+      if (isValidRgMatch(data)) {
+        const submatches = (data.data.submatches ?? []).map((sm) => ({
           text: sm.match?.text ?? "",
           start: sm.start ?? 0,
           end: sm.end ?? 0,
@@ -73,12 +79,14 @@ export async function searchBackupContent(
   params: SearchContentParams,
   backups: BackupStore
 ): Promise<SearchContentResult> {
+  const MAX_RESULTS_CAP = 200;
   const {
     pattern,
     ignoreCase = true,
-    maxResults = 50,
+    maxResults: rawMaxResults = 50,
     contextLines = 0,
   } = params;
+  const maxResults = Math.min(rawMaxResults, MAX_RESULTS_CAP);
 
   const emptyResult: SearchContentResult = {
     query: pattern,
@@ -129,7 +137,7 @@ export async function searchBackupContent(
       .maxCount(maxResults * 2)
       .glob("*.backup")
       .pattern(pattern)
-      .path(BACKUP_DIR)
+      .path(config.backupDir)
       .build();
 
     const output = await executeRipgrepWithLimit(args, 10 * 1024 * 1024, needsPCRE2);

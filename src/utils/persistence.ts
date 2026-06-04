@@ -4,11 +4,13 @@ import * as fs from 'node:fs/promises';
 import { createHmac, randomBytes } from 'node:crypto';
 import { readJSON, writeJSON, pathExists, ensureDir } from './fs.js';
 import { BackupInfo } from '../types/index.js';
-import { BACKUP_DIR } from './constants.js';
+import { config } from './config.js';
 import { CURRENT_SCHEMA_VERSION } from '../types/index.js';
 import { log } from './logger.js';
 
-const METADATA_FILE = path.join(BACKUP_DIR, 'metadata.json');
+function getMetadataFile(): string {
+  return path.join(config.backupDir, 'metadata.json');
+}
 const METADATA_KEYS_FILE = path.join(os.homedir(), '.config', 'backup-pro', '.metadata-key');
 
 /** Generates or loads a persistent HMAC key for metadata integrity. */
@@ -50,11 +52,11 @@ function migrateMetadata(data: StoredMetadata): Map<string, BackupInfo> {
 
 export async function loadBackupMetadata(): Promise<{ backups: Map<string, BackupInfo>; integrityWarning?: string }> {
   try {
-    if (!(await pathExists(METADATA_FILE))) {
+    if (!(await pathExists(getMetadataFile()))) {
       return { backups: new Map() };
     }
     
-    const data: StoredMetadata = await readJSON(METADATA_FILE);
+    const data: StoredMetadata = await readJSON(getMetadataFile());
     const entries = data.backups ?? (data as unknown as Record<string, BackupInfo>);
     const backups = migrateMetadata({ backups: entries });
 
@@ -66,8 +68,8 @@ export async function loadBackupMetadata(): Promise<{ backups: Map<string, Backu
           log.warn('persistence', 'Metadata integrity check failed — metadata may have been tampered with');
           return { backups, integrityWarning: 'Metadata integrity check failed. Backup paths should be re-validated.' };
         }
-      } catch {
-        log.warn('persistence', 'Could not verify metadata integrity (HMAC key missing or unreadable)');
+      } catch (error) {
+        log.debug('persistence', 'HMAC integrity check failed', { error: error instanceof Error ? error.message : String(error) });
       }
     }
     
@@ -80,7 +82,7 @@ export async function loadBackupMetadata(): Promise<{ backups: Map<string, Backu
 
 export async function saveBackupMetadata(backups: Map<string, BackupInfo>): Promise<void> {
   try {
-    const dir = path.dirname(METADATA_FILE);
+    const dir = path.dirname(getMetadataFile());
     await ensureDir(dir);
     
     const entries = Object.fromEntries(backups);
@@ -92,7 +94,7 @@ export async function saveBackupMetadata(backups: Map<string, BackupInfo>): Prom
       backups: entries,
       integrity,
     };
-    await writeJSON(METADATA_FILE, data, { spaces: 2 });
+    await writeJSON(getMetadataFile(), data, { spaces: 2 });
   } catch (error) {
     log.error('persistence', 'Error saving backup metadata', { error: error instanceof Error ? error.message : String(error) });
   }

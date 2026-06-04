@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import * as path from 'node:path';
-import { BACKUP_DIR } from './constants.js';
+import { config } from './config.js';
 import { pathExists, mkdirp } from './fs.js';
 
 /** Computes the SHA-256 hash of file content. */
@@ -10,8 +10,8 @@ export function calculateFileHash(content: Buffer | string): string {
 
 /** Ensures the backup directory exists, creating it if needed. */
 export async function ensureBackupDir(): Promise<void> {
-  if (!(await pathExists(BACKUP_DIR))) {
-    await mkdirp(BACKUP_DIR);
+  if (!(await pathExists(config.backupDir))) {
+    await mkdirp(config.backupDir);
   }
 }
 
@@ -20,7 +20,7 @@ export function generateBackupId(filePath: string, timestamp: string): string {
   const hash = createHash('sha256')
     .update(`${filePath}-${timestamp}`)
     .digest('hex');
-  return hash.substring(0, 12);
+  return hash.substring(0, 16);
 }
 
 /** Generates a unique backup filename from the original path, ID, and timestamp. */
@@ -42,7 +42,7 @@ export function parseBackupFileName(fileName: string): { timestamp: string | nul
         return { timestamp: date.toISOString() };
       }
     } catch {
-      // Ignore parsing errors
+      // Timestamp parsing is best-effort; malformed timestamps return null
     }
   }
   return { timestamp: null };

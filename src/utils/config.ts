@@ -13,7 +13,10 @@ export interface BackupConfig {
   maxFileSize: number;
 }
 
-const HOME_DIR = os.homedir();
+export const HOME_DIR = os.homedir();
+
+/** Server version — single source of truth. */
+export const SERVER_VERSION = '0.6.0';
 
 function parseAllowedRoots(): string[] {
   const raw = process.env.BACKUP_ALLOWED_ROOTS || '';

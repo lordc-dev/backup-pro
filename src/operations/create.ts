@@ -4,7 +4,6 @@ import { copy, pathExists, stat, readFile } from '../utils/fs.js';
 import * as path from 'node:path';
 import { BackupStore } from '../utils/store.js';
 import { BackupInfo, CreateBackupParams, CreateBackupResult } from '../types/index.js';
-import { BACKUP_DIR } from '../utils/constants.js';
 import { generateBackupId, generateBackupFileName, ensureBackupDir, calculateFileHash } from '../utils/hashing.js';
 
 import { config } from '../utils/config.js';
@@ -64,7 +63,7 @@ export async function createBackup(
   const timestamp = new Date().toISOString();
   const backupId = generateBackupId(resolvedPath, timestamp);
   const backupFileName = generateBackupFileName(resolvedPath, backupId, timestamp);
-  const backupPath = path.join(BACKUP_DIR, backupFileName);
+  const backupPath = path.join(config.backupDir, backupFileName);
 
   let fileHash: string | undefined;
   let hashWarning: string | undefined;
@@ -109,6 +108,11 @@ export async function createBackup(
 
     return result;
   } catch (error) {
+    if (error instanceof McpError) throw error;
+    const nodeError = error as NodeJS.ErrnoException;
+    if (nodeError.code === 'ENOENT') throw fileNotFoundError(resolvedPath);
+    if (nodeError.code === 'EACCES' || nodeError.code === 'EPERM') throw new McpError(ErrorCode.InvalidParams, `Permission denied: ${resolvedPath}`);
+    if (nodeError.code === 'ENOSPC') throw new McpError(ErrorCode.InternalError, `No space left on device`);
     throw toMcpError(error, 'Error creating backup');
   }
 }

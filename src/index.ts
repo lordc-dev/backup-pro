@@ -14,7 +14,7 @@ import {
 import { readFile } from './utils/fs.js';
 import { BackupResource } from './types/index.js';
 import { BackupStore } from './utils/store.js';
-import { config } from './utils/config.js';
+import { config, SERVER_VERSION } from './utils/config.js';
 import { backupNotFoundError } from './utils/validate.js';
 import { allTools } from './tools/index.js';
 import { log } from './utils/logger.js';
@@ -25,7 +25,7 @@ export class BackupServer {
 
   constructor() {
     this.server = new Server(
-      { name: "backup-server", version: "0.6.0" },
+      { name: "backup-server", version: SERVER_VERSION },
       { capabilities: { resources: {}, tools: {}, prompts: {} } }
     );
   }
@@ -119,7 +119,7 @@ export class BackupServer {
       if (uri === "backup://config/health") {
         const stats = {
           status: 'healthy',
-          version: '0.6.0',
+          version: SERVER_VERSION,
           backupCount: this.backups.size,
           backupDir: config.backupDir,
           allowedRoots: config.allowedRoots.length > 0 ? config.allowedRoots : ['(all paths)'],
@@ -160,7 +160,7 @@ export class BackupServer {
   async run(): Promise<void> {
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
-    log.info('backup-server', 'MCP Backup Server v0.6.0 running');
+    log.info('backup-server', `MCP Backup Server v${SERVER_VERSION} running`);
   }
 }
 
