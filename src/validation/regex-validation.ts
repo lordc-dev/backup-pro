@@ -14,7 +14,6 @@ export interface PatternValidationResult {
 }
 
 export interface RegexValidationOptions {
-  autoFix?: boolean;
   pcre2?: boolean;
 }
 
@@ -40,12 +39,12 @@ function countAlternations(pattern: string): number {
   let count = 0;
   let inCharClass = false;
   let escaped = false;
-  for (let i = 0; i < pattern.length; i++) {
+  for (const char of pattern) {
     if (escaped) { escaped = false; continue; }
-    if (pattern[i] === '\\') { escaped = true; continue; }
-    if (pattern[i] === '[') { inCharClass = true; continue; }
-    if (pattern[i] === ']') { inCharClass = false; continue; }
-    if (!inCharClass && pattern[i] === '|') count++;
+    if (char === '\\') { escaped = true; continue; }
+    if (char === '[') { inCharClass = true; continue; }
+    if (char === ']') { inCharClass = false; continue; }
+    if (!inCharClass && char === '|') count++;
   }
   return count;
 }
@@ -61,158 +60,114 @@ function hasReDoSPatterns(pattern: string): string[] {
   return warnings;
 }
 
+function validationError(errors: string[], errorMessage: string): PatternValidationResult {
+  return { valid: false, errors, warnings: [], errorMessage };
+}
+
+function validatePatternBasics(pattern: string): PatternValidationResult | null {
+  if (typeof pattern !== "string" || !pattern) {
+    return validationError(["Pattern must be a non-empty string"], "Invalid regex pattern: Pattern must be a non-empty string");
+  }
+  if (pattern.length > MAX_PATTERN_LENGTH) {
+    return validationError([`Pattern exceeds maximum length of ${MAX_PATTERN_LENGTH} characters`], `Invalid regex pattern: Pattern too long (${pattern.length} chars, max ${MAX_PATTERN_LENGTH})`);
+  }
+  if (pattern.includes("\x00")) {
+    return validationError(["Pattern contains null bytes"], "Invalid regex pattern: Null bytes are not allowed in patterns");
+  }
+  return null;
+}
+
+function validatePatternCompilation(pattern: string): PatternValidationResult | null {
+  try {
+    new RegExp(pattern);
+    return null;
+  } catch (error: unknown) {
+    const errorMsg = error instanceof Error ? error.message : "Unknown error";
+    const errors = [`Regex compilation failed: ${errorMsg}`];
+    const suggestions = suggestRegexFixes(pattern, errorMsg);
+    return validationError(errors, formatRegexErrorWithHints(pattern, errors, suggestions));
+  }
+}
+
+function validatePatternStructure(pattern: string): PatternValidationResult | null {
+  const nestingDepth = measureQuantifierNesting(pattern);
+  if (nestingDepth > MAX_QUANTIFIER_NESTING) {
+    return validationError(
+      [`Regex nesting depth (${nestingDepth}) exceeds maximum (${MAX_QUANTIFIER_NESTING}). Simplify the pattern to prevent excessive backtracking.`],
+      `Invalid regex pattern: Nesting too deep (${nestingDepth} levels, max ${MAX_QUANTIFIER_NESTING})`
+    );
+  }
+
+  const alternationCount = countAlternations(pattern);
+  if (alternationCount > MAX_ALTERNATION_DEPTH) {
+    return validationError(
+      [`Regex has too many alternations (${alternationCount}, max ${MAX_ALTERNATION_DEPTH}). Simplify the pattern.`],
+      `Invalid regex pattern: Too many alternations (${alternationCount}, max ${MAX_ALTERNATION_DEPTH})`
+    );
+  }
+
+  const redosWarnings = hasReDoSPatterns(pattern);
+  if (redosWarnings.length > 0) {
+    return validationError(redosWarnings, `Invalid regex pattern: ${redosWarnings.join('; ')}. Simplify the pattern to prevent catastrophic backtracking.`);
+  }
+
+  return null;
+}
+
 /**
  * Validates a regex pattern for use with ripgrep
  */
 export function validateRegexPattern(
   pattern: string,
-  options: RegexValidationOptions = {}
+  _options: RegexValidationOptions = {}
 ): PatternValidationResult {
-  if (typeof pattern !== "string" || !pattern) {
-    return {
-      valid: false,
-      errors: ["Pattern must be a non-empty string"],
-      warnings: [],
-      errorMessage: "Invalid regex pattern: Pattern must be a non-empty string",
-    };
-  }
+  const basicError = validatePatternBasics(pattern);
+  if (basicError) return basicError;
 
-  if (pattern.length > MAX_PATTERN_LENGTH) {
-    return {
-      valid: false,
-      errors: [`Pattern exceeds maximum length of ${MAX_PATTERN_LENGTH} characters`],
-      warnings: [],
-      errorMessage: `Invalid regex pattern: Pattern too long (${pattern.length} chars, max ${MAX_PATTERN_LENGTH})`,
-    };
-  }
+  const compileError = validatePatternCompilation(pattern);
+  if (compileError) return compileError;
 
-  if (pattern.includes("\x00")) {
-    return {
-      valid: false,
-      errors: ["Pattern contains null bytes"],
-      warnings: [],
-      errorMessage: "Invalid regex pattern: Null bytes are not allowed in patterns",
-    };
-  }
+  const structError = validatePatternStructure(pattern);
+  if (structError) return structError;
 
-  try {
-    new RegExp(pattern);
-  } catch (error: unknown) {
-    const errorMsg = error instanceof Error ? error.message : "Unknown error";
-    const errors = [`Regex compilation failed: ${errorMsg}`];
-    const suggestions = suggestRegexFixes(pattern, errorMsg);
+  const warnings = detectRegexWarnings(pattern);
+  return { valid: true, errors: [], warnings };
+}
 
-    if (options.autoFix) {
-      const fixed = autoFixRegexPattern(pattern);
-      if (fixed !== pattern) {
-        try {
-          new RegExp(fixed);
-          return {
-            valid: true,
-            sanitized: fixed,
-            errors: [],
-            warnings: [`Auto-fixed pattern from "${pattern}" to "${fixed}"`],
-          };
-        } catch {
-          // Auto-fix failed, fall through to error
-        }
-      }
-    }
+function suggestBraceFixes(pattern: string): string[] {
+  const suggestions: string[] = [];
+  if (pattern.includes('{') && !pattern.includes('\\{')) suggestions.push("Escape curly braces: use \\{ instead of {");
+  if (pattern.includes('}') && !pattern.includes('\\}')) suggestions.push("Escape curly braces: use \\} instead of }");
+  return suggestions;
+}
 
-    return {
-      valid: false,
-      errors,
-      warnings: [],
-      errorMessage: formatRegexErrorWithHints(pattern, errors, suggestions),
-    };
-  }
-
-  const warnings: string[] = [];
-
-  const nestingDepth = measureQuantifierNesting(pattern);
-  if (nestingDepth > MAX_QUANTIFIER_NESTING) {
-    return {
-      valid: false,
-      errors: [`Regex nesting depth (${nestingDepth}) exceeds maximum (${MAX_QUANTIFIER_NESTING}). Simplify the pattern to prevent excessive backtracking.`],
-      warnings: [],
-      errorMessage: `Invalid regex pattern: Nesting too deep (${nestingDepth} levels, max ${MAX_QUANTIFIER_NESTING})`,
-    };
-  }
-
-  const alternationCount = countAlternations(pattern);
-  if (alternationCount > MAX_ALTERNATION_DEPTH) {
-    return {
-      valid: false,
-      errors: [`Regex has too many alternations (${alternationCount}, max ${MAX_ALTERNATION_DEPTH}). Simplify the pattern.`],
-      warnings: [],
-      errorMessage: `Invalid regex pattern: Too many alternations (${alternationCount}, max ${MAX_ALTERNATION_DEPTH})`,
-    };
-  }
-
-  const redosWarnings = hasReDoSPatterns(pattern);
-  if (redosWarnings.length > 0) {
-    return {
-      valid: false,
-      errors: redosWarnings,
-      warnings: [],
-      errorMessage: `Invalid regex pattern: ${redosWarnings.join('; ')}. Simplify the pattern to prevent catastrophic backtracking.`,
-    };
-  }
-
-  warnings.push(...detectRegexWarnings(pattern));
-
-  return {
-    valid: true,
-    errors: [],
-    warnings,
-  };
+function suggestBracketFixes(pattern: string): string[] {
+  const suggestions: string[] = [];
+  if (pattern.includes('[') || pattern.includes(']')) suggestions.push('Escape square brackets: use \\[ and \\] for literal brackets');
+  if (pattern.includes('(') || pattern.includes(')')) suggestions.push('Escape parentheses: use \\( and \\) for literal parentheses');
+  return suggestions;
 }
 
 function suggestRegexFixes(pattern: string, errorMsg: string): string[] {
   const suggestions: string[] = [];
 
-  if (errorMsg.includes("repetition") || errorMsg.includes("quantifier")) {
-    if (pattern.includes("{") && !pattern.includes("\\{")) {
-      suggestions.push("Escape curly braces: use \\{ instead of {");
-    }
-    if (pattern.includes("}") && !pattern.includes("\\}")) {
-      suggestions.push("Escape curly braces: use \\} instead of }");
-    }
+  if (errorMsg.includes('repetition') || errorMsg.includes('quantifier')) {
+    suggestions.push(...suggestBraceFixes(pattern));
   }
 
-  if (errorMsg.includes("unclosed") || errorMsg.includes("unmatched")) {
-    if (pattern.includes("[") || pattern.includes("]")) {
-      suggestions.push("Escape square brackets: use \\[ and \\] for literal brackets");
-    }
-    if (pattern.includes("(") || pattern.includes(")")) {
-      suggestions.push("Escape parentheses: use \\( and \\) for literal parentheses");
-    }
+  if (errorMsg.includes('unclosed') || errorMsg.includes('unmatched')) {
+    suggestions.push(...suggestBracketFixes(pattern));
   }
 
-  if (errorMsg.includes("invalid escape")) {
-    suggestions.push("Check escape sequences - only valid regex escapes are allowed");
+  if (errorMsg.includes('invalid escape')) {
+    suggestions.push('Check escape sequences - only valid regex escapes are allowed');
   }
 
   if (suggestions.length === 0) {
-    suggestions.push("Check regex syntax and escape special characters: . ^ $ * + ? { } [ ] \\ | ( )");
+    suggestions.push('Check regex syntax and escape special characters: . ^ $ * + ? { } [ ] \\ | ( )');
   }
 
   return suggestions;
-}
-
-function autoFixRegexPattern(pattern: string): string {
-  let fixed = pattern;
-
-  fixed = fixed.replace(/([^\\])\{(?!\d)/g, "$1\\{");
-  fixed = fixed.replace(/([^\\])\}(?!\d)/g, "$1\\}");
-
-  if (fixed.startsWith("{")) {
-    fixed = "\\" + fixed;
-  }
-
-  fixed = fixed.replace(/([^\\])\[(\w+)\]/g, "$1\\[$2\\]");
-
-  return fixed;
 }
 
 function detectRegexWarnings(pattern: string): string[] {
