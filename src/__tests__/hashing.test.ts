@@ -21,9 +21,9 @@ describe('calculateFileHash', () => {
 });
 
 describe('generateBackupId', () => {
-  it('produces 12-char hex ids', () => {
-    const id = generateBackupId('/test/file.txt', '2024-01-15T10:00:00Z');
-    expect(id).toHaveLength(12);
+  it('produces 16-char hex ids', () => {
+  const id = generateBackupId('/test/file.txt', '2024-01-15T10:00:00.000Z');
+  expect(id).toHaveLength(16);
     expect(id).toMatch(/^[a-f0-9]+$/);
   });
 
