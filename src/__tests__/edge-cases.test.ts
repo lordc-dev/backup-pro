@@ -33,6 +33,7 @@ import {
 import { log } from '../utils/logger.js';
 import { cleanupBackups } from '../operations/cleanup.js';
 import { BackupInfo, BackupMetadata } from '../types/index.js';
+import { BackupConfig } from '../utils/config.js';
 
 function makeBackup(overrides: Partial<BackupMetadata> = {}): BackupInfo {
   const defaults: BackupMetadata = {
@@ -536,7 +537,7 @@ describe('BackupStore edge cases', () => {
       await fs.mkdir(tmpDir, { recursive: true });
 
       const { config } = await import('../utils/config.js');
-      (config as any).backupDir = tmpDir;
+      (config as BackupConfig).backupDir = tmpDir;
 
       const store = await BackupStore.create();
       const backup = makeBackup({ id: 'persist-test' });

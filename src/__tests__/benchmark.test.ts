@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { BackupStore } from '../utils/store.js';
+import { BackupConfig } from '../utils/config.js';
 import { diffLines } from '../utils/myers-diff.js';
 import { createBackup } from '../operations/create.js';
 import { listBackups } from '../operations/list.js';
@@ -23,7 +24,7 @@ describe('Benchmark: core backup operations', () => {
     await fs.mkdir(benchDir, { recursive: true });
 
     const { config } = await import('../utils/config.js');
-    (config as any).backupDir = benchDir;
+    (config as BackupConfig).backupDir = benchDir;
     config.allowedRoots.push(TMP_DIR, REAL_TMP_DIR);
 
     store = await BackupStore.create();

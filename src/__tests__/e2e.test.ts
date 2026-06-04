@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { BackupServer } from '../index.js';
+import { BackupStore } from '../utils/store.js';
+import { ToolDefinition } from '../tools/types.js';
 import * as path from 'node:path';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
@@ -8,29 +10,35 @@ import * as fsSync from 'node:fs';
 const TMP_DIR = path.join(os.tmpdir(), `backup-e2e-${Date.now()}`);
 const REAL_TMP_DIR = fsSync.realpathSync(os.tmpdir());
 
+interface TestBackupServer {
+  backups: BackupStore;
+  init(): Promise<void>;
+  getAllTools(): ToolDefinition[];
+}
+
 describe('E2E: BackupServer tool handlers', () => {
-  let server: BackupServer;
-  let backups: any;
+  let server: TestBackupServer;
+  let backups: BackupStore;
 
   beforeAll(async () => {
     await fs.mkdir(TMP_DIR, { recursive: true });
     const { config } = await import('../utils/config.js');
     config.allowedRoots.push(TMP_DIR, REAL_TMP_DIR);
-    server = new BackupServer();
-    await (server as any).init();
-    backups = (server as any).backups;
+    server = new BackupServer() as unknown as TestBackupServer;
+    await server.init();
+    backups = server.backups;
   });
 
   afterAll(async () => {
     const { config } = await import('../utils/config.js');
     config.allowedRoots = config.allowedRoots.filter((r: string) => r !== TMP_DIR && r !== REAL_TMP_DIR);
-    (server as any).backups.stopAutoSave();
+    server.backups.stopAutoSave();
     try { await fs.rm(TMP_DIR, { recursive: true, force: true }); } catch {}
   });
 
   it('has all expected tools registered', () => {
-    const tools = (server as any).getAllTools();
-    const names = tools.map((t: any) => t.name);
+    const tools: ToolDefinition[] = server.getAllTools();
+    const names = tools.map(t => t.name);
     expect(names).toContain('create_backup');
     expect(names).toContain('restore_backup');
     expect(names).toContain('delete_backup');
@@ -55,9 +63,9 @@ describe('E2E: BackupServer tool handlers', () => {
     const testFile = path.join(TMP_DIR, 'handler-test.txt');
     await fs.writeFile(testFile, 'handler test content');
 
-    const tools = (server as any).getAllTools();
-    const createTool = tools.find((t: any) => t.name === 'create_backup');
-    const deleteTool = tools.find((t: any) => t.name === 'delete_backup');
+    const tools: ToolDefinition[] = server.getAllTools();
+    const createTool = tools.find(t => t.name === 'create_backup')!;
+    const deleteTool = tools.find(t => t.name === 'delete_backup')!;
 
     const createResult = await createTool.handler({
       filePath: testFile,
@@ -84,8 +92,8 @@ describe('E2E: BackupServer tool handlers', () => {
       files.push(f);
     }
 
-    const tools = (server as any).getAllTools();
-    const batchTool = tools.find((t: any) => t.name === 'batch_backup');
+    const tools: ToolDefinition[] = server.getAllTools();
+    const batchTool = tools.find(t => t.name === 'batch_backup')!;
 
     const result = await batchTool.handler({
       filePaths: files,
@@ -97,16 +105,16 @@ describe('E2E: BackupServer tool handlers', () => {
   });
 
   it('stats handler returns data', async () => {
-    const tools = (server as any).getAllTools();
-    const statsTool = tools.find((t: any) => t.name === 'get_backup_stats');
+    const tools: ToolDefinition[] = server.getAllTools();
+    const statsTool = tools.find(t => t.name === 'get_backup_stats')!;
 
     const result = await statsTool.handler({}, backups);
     expect(result.text).toContain('Total');
   });
 
   it('tags handler works', async () => {
-    const tools = (server as any).getAllTools();
-    const listTagsTool = tools.find((t: any) => t.name === 'list_tags');
+    const tools: ToolDefinition[] = server.getAllTools();
+    const listTagsTool = tools.find(t => t.name === 'list_tags')!;
 
     const result = await listTagsTool.handler({}, backups);
     expect(result.text).toBeDefined();

@@ -243,7 +243,7 @@ describe('verifyBackup', () => {
 
   it('returns intact=true when no stored hash', async () => {
     const backup = makeBackup({ id: 'v-nohash', originalPath: '/tmp/v-nohash.txt', size: 10 });
-    delete (backup.metadata as any).fileHash;
+    delete (backup.metadata as Partial<BackupMetadata>).fileHash;
     store.set('v-nohash', backup);
     const result = await verifyBackup('v-nohash', store);
     expect(result).toBeDefined();
