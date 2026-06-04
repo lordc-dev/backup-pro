@@ -16,16 +16,24 @@ import { findDuplicates } from '../operations/duplicates.js';
 import { cleanupBackups } from '../operations/cleanup.js';
 import { batchBackup } from '../operations/batch.js';
 import { getBackupStats } from '../operations/stats.js';
+import { config } from '../utils/config.js';
+
+import * as fsSync from 'node:fs';
 
 const TMP_DIR = path.join(os.tmpdir(), `backup-test-${Date.now()}`);
+const REAL_TMP_DIR = fsSync.realpathSync(os.tmpdir());
 let backups: BackupStore;
+let originalAllowedRoots: string[];
 
 beforeEach(async () => {
   await fs.mkdir(TMP_DIR, { recursive: true });
+  originalAllowedRoots = [...config.allowedRoots];
+  config.allowedRoots = [TMP_DIR, REAL_TMP_DIR, ...config.allowedRoots];
   backups = await BackupStore.create();
 });
 
 afterEach(async () => {
+  config.allowedRoots = originalAllowedRoots;
   backups.stopAutoSave();
   try { await fs.rm(TMP_DIR, { recursive: true, force: true }); } catch {}
 });
@@ -40,7 +48,8 @@ describe('create + get + delete lifecycle', () => {
     expect(createResult.backupPath).toBeDefined();
     
     const info = await getBackup(createResult.backupId, backups);
-    expect(info.originalPath).toBe(testFile);
+    const realpath = await fs.realpath(testFile);
+    expect(info.originalPath).toBe(realpath);
     expect(info.description).toBe('test');
     expect(info.tags).toContain('unit');
     

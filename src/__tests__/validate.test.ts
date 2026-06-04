@@ -57,10 +57,10 @@ describe('backupNotFoundError', () => {
 });
 
 describe('fileNotFoundError', () => {
-  it('creates McpError with InvalidParams', () => {
+  it('creates McpError with sanitized path', () => {
     const err = fileNotFoundError('/missing/file.txt');
     expect(err).toBeInstanceOf(McpError);
-    expect(err.message).toContain('/missing/file.txt');
+    expect(err.message).toContain('file.txt');
   });
 });
 

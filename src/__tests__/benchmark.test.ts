@@ -6,10 +6,12 @@ import { listBackups } from '../operations/list.js';
 import { searchBackups } from '../operations/search.js';
 import { batchBackup } from '../operations/batch.js';
 import fs from 'node:fs/promises';
+import fsSync from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 
 const TMP_DIR = path.join(os.tmpdir(), `backup-bench-${Date.now()}`);
+const REAL_TMP_DIR = fsSync.realpathSync(os.tmpdir());
 const ORIG_BACKUP_DIR = process.env.BACKUP_DIR;
 
 describe('Benchmark: core backup operations', () => {
@@ -22,6 +24,7 @@ describe('Benchmark: core backup operations', () => {
 
     const { config } = await import('../utils/config.js');
     (config as any).backupDir = benchDir;
+    config.allowedRoots.push(TMP_DIR, REAL_TMP_DIR);
 
     store = await BackupStore.create();
   });

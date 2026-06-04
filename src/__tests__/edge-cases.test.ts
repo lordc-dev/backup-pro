@@ -64,8 +64,14 @@ describe('validateFilePath edge cases', () => {
     // ~/ is expanded to HOME, then normalized — should not throw
   });
 
-  it('allows ~/ with no path traversal', () => {
-    expect(() => validateFilePath('~/code/project')).not.toThrow();
+  it('allows ~/ with no path traversal (if inside cwd)', () => {
+    // ~/ expands to HOME; only passes if HOME is inside allowedRoots (cwd by default)
+    const homeInsideCwd = process.env.HOME?.startsWith(process.cwd());
+    if (homeInsideCwd) {
+      expect(() => validateFilePath('~/code/project')).not.toThrow();
+    } else {
+      expect(() => validateFilePath('~/code/project')).toThrow();
+    }
   });
 
   it('rejects ~/.. traversal', () => {
@@ -316,10 +322,10 @@ describe('toMcpError edge cases', () => {
 });
 
 describe('fileNotFoundError', () => {
-  it('includes path in message', () => {
+  it('includes sanitized path in message', () => {
     const err = fileNotFoundError('/missing/file.txt');
     expect(err).toBeInstanceOf(McpError);
-    expect(err.message).toContain('/missing/file.txt');
+    expect(err.message).toContain('file.txt');
   });
 });
 

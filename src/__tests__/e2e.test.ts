@@ -3,8 +3,10 @@ import { BackupServer } from '../index.js';
 import * as path from 'node:path';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
+import * as fsSync from 'node:fs';
 
 const TMP_DIR = path.join(os.tmpdir(), `backup-e2e-${Date.now()}`);
+const REAL_TMP_DIR = fsSync.realpathSync(os.tmpdir());
 
 describe('E2E: BackupServer tool handlers', () => {
   let server: BackupServer;
@@ -12,12 +14,16 @@ describe('E2E: BackupServer tool handlers', () => {
 
   beforeAll(async () => {
     await fs.mkdir(TMP_DIR, { recursive: true });
+    const { config } = await import('../utils/config.js');
+    config.allowedRoots.push(TMP_DIR, REAL_TMP_DIR);
     server = new BackupServer();
     await (server as any).init();
     backups = (server as any).backups;
   });
 
   afterAll(async () => {
+    const { config } = await import('../utils/config.js');
+    config.allowedRoots = config.allowedRoots.filter((r: string) => r !== TMP_DIR && r !== REAL_TMP_DIR);
     (server as any).backups.stopAutoSave();
     try { await fs.rm(TMP_DIR, { recursive: true, force: true }); } catch {}
   });
