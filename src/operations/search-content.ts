@@ -75,6 +75,47 @@ function parseJsonResults(output: string): ContentSearchResult[] {
   return results;
 }
 
+function buildSearchArgs(
+  pattern: string,
+  configObj: { backupDir: string },
+  options: { ignoreCase: boolean; maxResults: number; contextLines: number }
+): string[] {
+  return rgArgs()
+    .json()
+    .noMessages()
+    .context(options.contextLines)
+    .ignoreCase(options.ignoreCase)
+    .maxCount(options.maxResults * 2)
+    .glob("*.backup")
+    .pattern(pattern)
+    .path(configObj.backupDir)
+    .build();
+}
+
+function buildMatchFromResult(
+  result: ContentSearchResult,
+  pathToId: Map<string, string>,
+  backups: BackupStore
+): BackupContentMatch | null {
+  const backupId = pathToId.get(result.file);
+  if (!backupId) return null;
+
+  const backup = backups.get(backupId);
+  if (!backup) return null;
+
+  return {
+    backupId,
+    originalPath: backup.metadata.originalPath,
+    description: backup.metadata.description,
+    tags: backup.metadata.tags || [],
+    timestamp: backup.metadata.timestamp,
+    line: result.line,
+    content: result.content,
+    matchStart: result.submatches[0]?.start ?? 0,
+    matchEnd: result.submatches[0]?.end ?? 0,
+  };
+}
+
 export async function searchBackupContent(
   params: SearchContentParams,
   backups: BackupStore
@@ -129,16 +170,7 @@ export async function searchBackupContent(
 
     const needsPCRE2 = requiresPCRE2(pattern);
 
-    const args = rgArgs()
-      .json()
-      .noMessages()
-      .context(contextLines)
-      .ignoreCase(ignoreCase)
-      .maxCount(maxResults * 2)
-      .glob("*.backup")
-      .pattern(pattern)
-      .path(config.backupDir)
-      .build();
+    const args = buildSearchArgs(pattern, config, { ignoreCase, maxResults, contextLines });
 
     const output = await executeRipgrepWithLimit(args, 10 * 1024 * 1024, needsPCRE2);
     rgResults = parseJsonResults(output);
@@ -153,23 +185,9 @@ export async function searchBackupContent(
   const matches: BackupContentMatch[] = [];
 
   for (const result of rgResults) {
-    const backupId = pathToId.get(result.file);
-
-    if (backupId) {
-      const backup = backups.get(backupId);
-      if (backup) {
-        matches.push({
-          backupId,
-          originalPath: backup.metadata.originalPath,
-          description: backup.metadata.description,
-          tags: backup.metadata.tags || [],
-          timestamp: backup.metadata.timestamp,
-          line: result.line,
-          content: result.content,
-          matchStart: result.submatches[0]?.start ?? 0,
-          matchEnd: result.submatches[0]?.end ?? 0,
-        });
-      }
+    const match = buildMatchFromResult(result, pathToId, backups);
+    if (match) {
+      matches.push(match);
     }
 
     if (matches.length >= maxResults) {

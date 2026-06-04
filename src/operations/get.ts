@@ -1,7 +1,7 @@
 import { backupNotFoundError } from '../utils/validate.js';
 import { pathExists, stat, readFile } from '../utils/fs.js';
 import { BackupStore } from '../utils/store.js';
-import { BackupMetadata } from '../types/index.js';
+import { BackupMetadata, BackupInfo } from '../types/index.js';
 import { calculateFileHash } from '../utils/hashing.js';
 import { formatFileSize } from '../utils/formatting.js';
 
@@ -16,20 +16,10 @@ export interface BackupDetails extends BackupMetadata {
   warnings?: string[];
 }
 
-/** Retrieves detailed information about a backup, checking file existence and hash integrity. */
-export async function getBackup(
-  backupId: string,
-  backups: BackupStore
-): Promise<BackupDetails> {
-  const backup = backups.get(backupId);
-  if (!backup) {
-    throw backupNotFoundError(backupId);
-  }
-
-  const backupExists = await pathExists(backup.backupPath);
+async function computeCurrentState(backup: BackupInfo): Promise<{ currentSize: number | undefined; hashMatch: boolean | undefined; warnings: string[] }> {
   const originalExists = await pathExists(backup.metadata.originalPath);
+  const backupExists = await pathExists(backup.backupPath);
   const warnings: string[] = [];
-
   let currentSize: number | undefined;
   let hashMatch: boolean | undefined;
 
@@ -45,15 +35,39 @@ export async function getBackup(
     }
   }
 
-  let actualSize = backup.metadata.size || 0;
-  if (backupExists) {
+  return { currentSize, hashMatch, warnings };
+}
+
+async function computeActualSize(backupPath: string, metadataSize: number | undefined): Promise<{ actualSize: number; warnings: string[] }> {
+  let actualSize = metadataSize ?? 0;
+  const warnings: string[] = [];
+  if (await pathExists(backupPath)) {
     try {
-      const backupStats = await stat(backup.backupPath);
+      const backupStats = await stat(backupPath);
       actualSize = backupStats.size;
     } catch (error) {
       warnings.push(`Failed to get backup file size: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
+  return { actualSize, warnings };
+}
+
+/** Retrieves detailed information about a backup, checking file existence and hash integrity. */
+export async function getBackup(
+  backupId: string,
+  backups: BackupStore
+): Promise<BackupDetails> {
+  const backup = backups.get(backupId);
+  if (!backup) {
+    throw backupNotFoundError(backupId);
+  }
+
+  const backupExists = await pathExists(backup.backupPath);
+  const originalExists = await pathExists(backup.metadata.originalPath);
+
+  const { currentSize, hashMatch, warnings: stateWarnings } = await computeCurrentState(backup);
+  const { actualSize, warnings: sizeWarnings } = await computeActualSize(backup.backupPath, backup.metadata.size);
+  const warnings = [...stateWarnings, ...sizeWarnings];
 
   return {
     ...backup.metadata,
@@ -68,10 +82,8 @@ export async function getBackup(
   };
 }
 
-/** Formats backup details into a human-readable string. */
-export function formatBackupDetails(details: BackupDetails): string {
+function formatDetailsHeader(details: BackupDetails): string[] {
   const lines: string[] = [];
-
   lines.push(`📋 Backup Details: ${details.id}`);
   lines.push('═'.repeat(50));
   lines.push('');
@@ -85,9 +97,15 @@ export function formatBackupDetails(details: BackupDetails): string {
   }
 
   if (details.tags && details.tags.length > 0) {
-    lines.push(`🏷️  Tags: ${details.tags.map(t => `#${t}`).join(' ')}`);
+    const tagList = details.tags.map(t => '#' + t).join(' ');
+    lines.push(`🏷️  Tags: ${tagList}`);
   }
 
+  return lines;
+}
+
+function formatDetailsStatus(details: BackupDetails): string[] {
+  const lines: string[] = [];
   lines.push('');
   lines.push('Status:');
   lines.push(`  • Backup file: ${details.backupExists ? '✅ exists' : '❌ missing'}`);
@@ -101,9 +119,21 @@ export function formatBackupDetails(details: BackupDetails): string {
     lines.push(`  • Current size: ${formatFileSize(details.currentSize)} (was ${details.sizeFormatted})`);
   }
 
+  return lines;
+}
+
+function formatDetailsHashes(details: BackupDetails): string[] {
+  const lines: string[] = [];
+
   if (details.fileHash) {
     lines.push(`  • Hash: ${details.fileHash}`);
   }
+
+  return lines;
+}
+
+function formatDetailsRelated(details: BackupDetails): string[] {
+  const lines: string[] = [];
 
   if (details.relatedFiles && details.relatedFiles.length > 0) {
     lines.push('');
@@ -129,6 +159,18 @@ export function formatBackupDetails(details: BackupDetails): string {
       lines.push(`   • ${w}`);
     }
   }
+
+  return lines;
+}
+
+/** Formats backup details into a human-readable string. */
+export function formatBackupDetails(details: BackupDetails): string {
+  const lines: string[] = [
+    ...formatDetailsHeader(details),
+    ...formatDetailsStatus(details),
+    ...formatDetailsHashes(details),
+    ...formatDetailsRelated(details),
+  ];
 
   return lines.join('\n');
 }

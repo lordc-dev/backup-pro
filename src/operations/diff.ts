@@ -14,6 +14,48 @@ export interface DiffResult {
   diff: string;
 }
 
+function getDiffPrefix(part: { added?: boolean; removed?: boolean }): string {
+  if (part.added) return '+';
+  if (part.removed) return '-';
+  return ' ';
+}
+
+function formatDiffPart(part: { added?: boolean; removed?: boolean; value: string }): string[] {
+  const lines: string[] = [];
+  const prefix = getDiffPrefix(part);
+
+  for (const line of part.value.split('\n')) {
+    if (line) lines.push(`${prefix}${line}`);
+  }
+
+  return lines;
+}
+
+function buildDiffHunks(
+  changes: Array<{ added?: boolean; removed?: boolean; value: string; count?: number }>,
+  backupId: string,
+  compareLabel: string
+): { hunks: string[]; additions: number; deletions: number } {
+  let additions = 0;
+  let deletions = 0;
+  const hunks: string[] = [];
+
+  hunks.push(`--- backup:${backupId}`);
+  hunks.push(`+++ ${compareLabel}`);
+
+  for (const part of changes) {
+    if (part.added) {
+      additions += part.count || 0;
+    } else if (part.removed) {
+      deletions += part.count || 0;
+    }
+
+    hunks.push(...formatDiffPart(part));
+  }
+
+  return { hunks, additions, deletions };
+}
+
 /** Compares a backup's content with the current file or another backup, returning line-level diff. */
 export async function diffBackup(
   backupId: string,
@@ -54,30 +96,7 @@ export async function diffBackup(
 
   const changes = diffLines(backupContent, compareContent);
 
-  let additions = 0;
-  let deletions = 0;
-  const hunks: string[] = [];
-
-  hunks.push(`--- backup:${backupId}`);
-  hunks.push(`+++ ${compareLabel}`);
-
-  for (const part of changes) {
-    if (part.added) {
-      additions += part.count || 0;
-      for (const line of part.value.split('\n')) {
-        if (line) hunks.push(`+${line}`);
-      }
-    } else if (part.removed) {
-      deletions += part.count || 0;
-      for (const line of part.value.split('\n')) {
-        if (line) hunks.push(`-${line}`);
-      }
-    } else {
-      for (const line of part.value.split('\n')) {
-        if (line) hunks.push(` ${line}`);
-      }
-    }
-  }
+  const { hunks, additions, deletions } = buildDiffHunks(changes, backupId, compareLabel);
 
   return {
     backupId,

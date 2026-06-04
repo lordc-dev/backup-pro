@@ -56,7 +56,8 @@ export function formatBackupEntry(backup: BackupMetadata): string {
   }
 
   if (backup.tags && backup.tags.length > 0) {
-    lines.push(`   🏷️  ${backup.tags.map(tag => `#${tag}`).join(' ')}`);
+    const tagList = backup.tags.map(tag => '#' + tag).join(' ');
+    lines.push(`   🏷️  ${tagList}`);
   }
   
   if (backup.size !== undefined) {

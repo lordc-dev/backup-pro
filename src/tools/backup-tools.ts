@@ -32,9 +32,10 @@ export const createBackupTool: ToolDefinition = {
       projectContext: optionalString(args, 'projectContext'),
     };
     const { backupId, backupPath, warnings } = await createBackup(params, backups);
-    let msg = `✅ Backup created successfully\n\n📁 File: ${params.filePath}\n🆔 ID: ${backupId}\n📍 Location: ${backupPath}`;
-    if (params.tags && params.tags.length > 0) msg += `\n🏷️  Tags: ${params.tags.map(t => `#${t}`).join(' ')}`;
-    if (warnings && warnings.length > 0) msg += `\n\n⚠️  Warnings:\n${warnings.map(w => `   • ${w}`).join('\n')}`;
+    const tagsDisplay = params.tags && params.tags.length > 0 ? '🏷️  Tags: ' + params.tags.map(t => '#' + t).join(' ') : '';
+    const warningLines = (warnings ?? []).map(w => '   • ' + w).join('\n');
+    const warningsDisplay = warnings && warnings.length > 0 ? '\n\n⚠️  Warnings:\n' + warningLines : '';
+    const msg = `✅ Backup created successfully\n\n📁 File: ${params.filePath}\n🆔 ID: ${backupId}\n📍 Location: ${backupPath}${tagsDisplay}${warningsDisplay}`;
     return textResult(msg);
   },
 };
@@ -146,7 +147,7 @@ export const previewBackupTool: ToolDefinition = {
       backupId: { type: "string", description: "ID of the backup to preview" },
       head: { type: "number", description: "Show first N lines" },
       tail: { type: "number", description: "Show last N lines" },
-      maxChars: { type: "number", description: `Maximum characters to return (default: ${config.maxPreviewChars})` },
+      maxChars: { type: "number", description: "Maximum characters to return (default: " + config.maxPreviewChars + ")" },
     },
     required: ["backupId"],
   },
@@ -157,9 +158,10 @@ export const previewBackupTool: ToolDefinition = {
       tail: optionalNumber(args, 'tail'),
       maxChars: optionalNumber(args, 'maxChars'),
     });
-    let header = `📄 Preview: ${result.fileName}\n${'═'.repeat(50)}\n🆔 Backup ID: ${result.backupId}\n💾 Size: ${result.sizeFormatted} | Lines: ${result.totalLines}\n`;
-    if (result.tags.length > 0) header += `🏷️  Tags: ${result.tags.map(t => '#' + t).join(' ')}\n`;
-    header += `${'─'.repeat(50)}\n`;
+    const tagsStr = result.tags.length > 0 ? '🏷️  Tags: ' + result.tags.map(t => '#' + t).join(' ') + '\n' : '';
+    const separator = '═'.repeat(50);
+    const dash = '─'.repeat(50);
+    const header = '📄 Preview: ' + result.fileName + '\n' + separator + '\n🆔 Backup ID: ' + result.backupId + '\n💾 Size: ' + result.sizeFormatted + ' | Lines: ' + result.totalLines + '\n' + tagsStr + dash + '\n';
     let content = result.content;
     if (result.truncated) content += `\n\n... (truncated, showing ${result.previewLines} of ${result.totalLines} lines)`;
     return textResult(header + content);
@@ -181,11 +183,11 @@ export const diffBackupTool: ToolDefinition = {
     const backupId = requireString(args, 'backupId');
     const compareWith = optionalString(args, 'compareWith');
     const result = await diffBackup(backupId, backups, compareWith);
-    let header = `📊 Diff: backup:${backupId}`;
-    header += compareWith ? ` vs backup:${compareWith}` : ' vs current file';
-    header += `\n${'═'.repeat(50)}\n📁 File: ${result.originalPath}\n`;
-    header += `${result.hasChanges ? `➕ ${result.additions} additions, ➖ ${result.deletions} deletions` : '✅ No changes'}\n`;
-    header += `${'─'.repeat(50)}\n`;
+    const comparisonLabel = compareWith ? ' vs backup:' + compareWith : ' vs current file';
+    const changeSummary = result.hasChanges ? '➕ ' + result.additions + ' additions, ➖ ' + result.deletions + ' deletions' : '✅ No changes';
+    const separator = '═'.repeat(50);
+    const dash = '─'.repeat(50);
+    const header = '📊 Diff: backup:' + backupId + comparisonLabel + '\n' + separator + '\n📁 File: ' + result.originalPath + '\n' + changeSummary + '\n' + dash + '\n';
     return textResult(header + result.diff);
   },
 };

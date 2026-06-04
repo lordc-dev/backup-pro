@@ -9,6 +9,26 @@ export interface StatsResult {
   warnings: string[];
 }
 
+async function computeFileStats(backup: import('../types/index.js').BackupInfo): Promise<{ size: number; warning?: string }> {
+  if (backup.metadata.size) {
+    return { size: backup.metadata.size };
+  }
+
+  if (await pathExists(backup.backupPath)) {
+    try {
+      const stats = await stat(backup.backupPath);
+      return { size: stats.size };
+    } catch (error) {
+      return { 
+        size: 0, 
+        warning: `Failed to stat ${backup.metadata.id}: ${error instanceof Error ? error.message : String(error)}` 
+      };
+    }
+  }
+
+  return { size: 0 };
+}
+
 /** Computes aggregate statistics for all backups in the store. */
 export async function getBackupStats(backups: BackupStore): Promise<StatsResult> {
   let totalSize = 0;
@@ -17,19 +37,16 @@ export async function getBackupStats(backups: BackupStore): Promise<StatsResult>
   const uniqueFiles = new Set<string>();
   const warnings: string[] = [];
 
+  if (backups.loadError) {
+    warnings.push(`Metadata load issue: ${backups.loadError}`);
+  }
+
   for (const backup of backups.values()) {
     uniqueFiles.add(backup.metadata.originalPath);
 
-    if (backup.metadata.size) {
-      totalSize += backup.metadata.size;
-    } else if (await pathExists(backup.backupPath)) {
-      try {
-        const stats = await stat(backup.backupPath);
-        totalSize += stats.size;
-      } catch (error) {
-        warnings.push(`Failed to stat ${backup.metadata.id}: ${error instanceof Error ? error.message : String(error)}`);
-      }
-    }
+    const { size, warning } = await computeFileStats(backup);
+    totalSize += size;
+    if (warning) warnings.push(warning);
 
     if (!oldestTimestamp || backup.metadata.timestamp < oldestTimestamp) {
       oldestTimestamp = backup.metadata.timestamp;

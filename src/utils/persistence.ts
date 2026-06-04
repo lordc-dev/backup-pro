@@ -3,9 +3,8 @@ import * as os from 'node:os';
 import * as fs from 'node:fs/promises';
 import { createHmac, randomBytes } from 'node:crypto';
 import { readJSON, writeJSON, pathExists, ensureDir } from './fs.js';
-import { BackupInfo } from '../types/index.js';
+import { BackupInfo, CURRENT_SCHEMA_VERSION } from '../types/index.js';
 import { config } from './config.js';
-import { CURRENT_SCHEMA_VERSION } from '../types/index.js';
 import { log } from './logger.js';
 
 function getMetadataFile(): string {
@@ -16,8 +15,8 @@ const METADATA_KEYS_FILE = path.join(os.homedir(), '.config', 'backup-pro', '.me
 /** Generates or loads a persistent HMAC key for metadata integrity. */
 async function getIntegrityKey(): Promise<string> {
   if (await pathExists(METADATA_KEYS_FILE)) {
-    const key = await readJSON(METADATA_KEYS_FILE) as { key: string };
-    if (key?.key) return key.key;
+    const stored = await readJSON<{ key: string }>(METADATA_KEYS_FILE);
+    if (stored?.key) return stored.key;
   }
   const key = randomBytes(32).toString('hex');
   await ensureDir(path.dirname(METADATA_KEYS_FILE));
@@ -50,7 +49,7 @@ function migrateMetadata(data: StoredMetadata): Map<string, BackupInfo> {
   return migrated;
 }
 
-export async function loadBackupMetadata(): Promise<{ backups: Map<string, BackupInfo>; integrityWarning?: string }> {
+export async function loadBackupMetadata(): Promise<{ backups: Map<string, BackupInfo>; integrityWarning?: string; loadError?: string }> {
   try {
     if (!(await pathExists(getMetadataFile()))) {
       return { backups: new Map() };
@@ -75,8 +74,9 @@ export async function loadBackupMetadata(): Promise<{ backups: Map<string, Backu
     
     return { backups };
   } catch (error) {
-    log.error('persistence', 'Error loading backup metadata', { error: error instanceof Error ? error.message : String(error) });
-    return { backups: new Map() };
+    const message = error instanceof Error ? error.message : String(error);
+    log.error('persistence', 'Error loading backup metadata', { error: message });
+    return { backups: new Map(), loadError: message };
   }
 }
 
@@ -155,6 +155,28 @@ export function filterByDateRange(
   return filtered;
 }
 
+function matchesSearchTerm(backup: BackupInfo, term: string, searchIn: string[]): boolean {
+  if (searchIn.includes('all') || searchIn.includes('description')) {
+    if (backup.metadata.description?.toLowerCase().includes(term)) {
+      return true;
+    }
+  }
+
+  if (searchIn.includes('all') || searchIn.includes('tags')) {
+    if (backup.metadata.tags && backup.metadata.tags.some(tag => typeof tag === 'string' && tag.toLowerCase().includes(term))) {
+      return true;
+    }
+  }
+
+  if (searchIn.includes('all') || searchIn.includes('filename')) {
+    if (backup.metadata.originalPath && path.basename(backup.metadata.originalPath).toLowerCase().includes(term)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 export function searchBackups(
   backups: Map<string, BackupInfo>,
   searchTerm: string,
@@ -164,27 +186,7 @@ export function searchBackups(
   const filtered = new Map<string, BackupInfo>();
   
   for (const [id, backup] of backups.entries()) {
-    let match = false;
-    
-    if (searchIn.includes('all') || searchIn.includes('description')) {
-      if (backup.metadata.description?.toLowerCase().includes(term)) {
-        match = true;
-      }
-    }
-
-    if (searchIn.includes('all') || searchIn.includes('tags')) {
-      if (backup.metadata.tags && backup.metadata.tags.some(tag => typeof tag === 'string' && tag.toLowerCase().includes(term))) {
-        match = true;
-      }
-    }
-
-    if (searchIn.includes('all') || searchIn.includes('filename')) {
-      if (backup.metadata.originalPath && path.basename(backup.metadata.originalPath).toLowerCase().includes(term)) {
-        match = true;
-      }
-    }
-    
-    if (match) {
+    if (matchesSearchTerm(backup, term, searchIn)) {
       filtered.set(id, backup);
     }
   }

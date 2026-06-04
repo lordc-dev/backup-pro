@@ -28,8 +28,8 @@ export async function previewBackup(
   options: { head?: number; tail?: number; maxChars?: number } = {}
 ): Promise<PreviewResult> {
   const maxCharsCap = 100_000;
-  const { head, tail, maxChars: rawmaxChars = config.maxPreviewChars } = options;
-  const maxChars = Math.min(rawmaxChars, maxCharsCap);
+  const { head, tail, maxChars: rawMaxChars = config.maxPreviewChars } = options;
+  const maxChars = Math.min(rawMaxChars, maxCharsCap);
 
   const backup = backups.get(backupId);
   if (!backup) {
@@ -62,7 +62,7 @@ export async function previewBackup(
   } else {
     content = fullContent;
     previewLines = totalLines;
-    truncated = false;
+
   }
 
   if (content.length > maxChars) {

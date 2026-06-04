@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { Server } from "@modelcontextprotocol/sdk/server/index.js";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import {
   CallToolRequestSchema,
@@ -18,13 +18,14 @@ import { config, SERVER_VERSION } from './utils/config.js';
 import { backupNotFoundError } from './utils/validate.js';
 import { allTools } from './tools/index.js';
 import { log } from './utils/logger.js';
+import { backupRateLimiter } from './utils/concurrency.js';
 
 export class BackupServer {
-  private server: Server;
+  private server: McpServer;
   private backups!: BackupStore;
 
   constructor() {
-    this.server = new Server(
+    this.server = new McpServer(
       { name: "backup-server", version: SERVER_VERSION },
       { capabilities: { resources: {}, tools: {}, prompts: {} } }
     );
@@ -52,7 +53,7 @@ export class BackupServer {
   }
 
   private setupToolHandlers(): void {
-    this.server.setRequestHandler(ListToolsRequestSchema, async () => ({
+    this.server.server.setRequestHandler(ListToolsRequestSchema, async () => ({
       tools: allTools.map(tool => ({
         name: tool.name,
         description: tool.description,
@@ -60,7 +61,7 @@ export class BackupServer {
       })),
     }));
 
-    this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    this.server.server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const { name, arguments: args } = request.params;
       const tool = allTools.find(t => t.name === name);
 
@@ -69,6 +70,7 @@ export class BackupServer {
       }
 
       try {
+        await backupRateLimiter.acquire();
         const result = await tool.handler(args, this.backups);
         if (tool.persistAfter) {
           await this.backups.save();
@@ -82,7 +84,7 @@ export class BackupServer {
   }
 
   private setupResourceHandlers(): void {
-    this.server.setRequestHandler(ListResourcesRequestSchema, async () => {
+    this.server.server.setRequestHandler(ListResourcesRequestSchema, async () => {
       const resources: BackupResource[] = [];
       for (const [id, info] of this.backups.entries()) {
         const tags = info.metadata.tags.length > 0 ? ` [${info.metadata.tags.join(', ')}]` : '';
@@ -113,17 +115,18 @@ export class BackupServer {
       return { resources };
     });
 
-    this.server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+    this.server.server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
       const { uri } = request.params;
       
       if (uri === "backup://config/health") {
         const stats = {
-          status: 'healthy',
+          status: this.backups.loadError ? 'degraded' : 'healthy',
           version: SERVER_VERSION,
           backupCount: this.backups.size,
           backupDir: config.backupDir,
           allowedRoots: config.allowedRoots.length > 0 ? config.allowedRoots : ['(all paths)'],
           logLevel: config.logLevel,
+          ...(this.backups.loadError ? { loadError: this.backups.loadError } : {}),
         };
         return { contents: [{ uri, mimeType: "application/json", text: JSON.stringify(stats, null, 2) }] };
       }
@@ -152,7 +155,7 @@ export class BackupServer {
   }
 
   private setupPromptsHandler(): void {
-    this.server.setRequestHandler(ListPromptsRequestSchema, async () => ({ prompts: [] }));
+    this.server.server.setRequestHandler(ListPromptsRequestSchema, async () => ({ prompts: [] }));
   }
 
   getAllTools() { return allTools; }

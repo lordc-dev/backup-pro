@@ -1,8 +1,7 @@
 
 import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
 import * as path from 'node:path';
-import { config } from './config.js';
-import { HOME_DIR } from './config.js';
+import { config, HOME_DIR } from './config.js';
 import { realpath } from './fs.js';
 
 /** Wraps an unknown error as an MCP InternalError with a descriptive prefix. */
@@ -146,12 +145,16 @@ export function backupNotFoundError(backupId: string): McpError {
   return new McpError(ErrorCode.InvalidParams, `Backup not found: ${backupId}`);
 }
 
-const ISO_DATE_REGEX = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:?\d{2})?)?$/;
+const ISO_DATE_REGEX = /^(?:\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?)?)$/;
+
+function isISODateString(value: string): boolean {
+  return ISO_DATE_REGEX.test(value);
+}
 
 /** Validates an ISO 8601 date string parameter, returning undefined if absent. */
 export function validateDateString(value: string | undefined, paramName: string): string | undefined {
   if (value === undefined) return undefined;
-  if (!ISO_DATE_REGEX.test(value)) {
+  if (!isISODateString(value)) {
     throw new McpError(ErrorCode.InvalidParams, `Invalid ${paramName}: must be ISO 8601 date string (e.g., "2024-01-15" or "2024-01-15T10:30:00Z"), got "${value}"`);
   }
   return value;

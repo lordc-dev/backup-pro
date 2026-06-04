@@ -3,6 +3,7 @@ import { BackupStore } from '../utils/store.js';
 import { BackupInfo, BackupMetadata } from '../types/index.js';
 import { calculateFileHash } from '../utils/hashing.js';
 import { formatFileSize } from '../utils/formatting.js';
+import { parallelMap } from '../utils/concurrency.js';
 
 /** A group of backups with identical file content. */
 export interface DuplicateGroup {
@@ -21,42 +22,52 @@ export interface FindDuplicatesResult {
   uniqueBackups: number;
 }
 
-/** Finds backups with identical content by hashing, returning groups and wasted space. */
-export async function findDuplicates(
+async function computeBackupHash(backup: BackupInfo): Promise<{ hash: string; size: number } | null> {
+  if (backup.metadata.fileHash && backup.metadata.size) {
+    return { hash: backup.metadata.fileHash, size: backup.metadata.size };
+  }
+  try {
+    const content = await readFile(backup.backupPath);
+    const hash = calculateFileHash(content);
+    const stats = await stat(backup.backupPath);
+    return { hash, size: stats.size };
+  } catch {
+    return null;
+  }
+}
+
+async function computeBackupHashes(
   backups: BackupStore
-): Promise<FindDuplicatesResult> {
+): Promise<Map<string, { backup: BackupInfo; size: number }[]>> {
+  const entries = [...backups.entries()];
+  const results = await parallelMap(
+    entries,
+    async ([id, backup]) => {
+      if (!(await pathExists(backup.backupPath))) return null;
+      const result = await computeBackupHash(backup);
+      if (!result) return null;
+      return { id, hash: result.hash, size: result.size } as const;
+    },
+    5
+  );
+
   const hashGroups = new Map<string, { backup: BackupInfo; size: number }[]>();
-  const warnings: string[] = [];
-
-  for (const [id, backup] of backups.entries()) {
-    if (!(await pathExists(backup.backupPath))) {
-      continue;
-    }
-
-    let hash: string;
-    let size: number;
-
-    if (backup.metadata.fileHash && backup.metadata.size) {
-      hash = backup.metadata.fileHash;
-      size = backup.metadata.size;
-    } else {
-      try {
-        const content = await readFile(backup.backupPath);
-        hash = calculateFileHash(content);
-        const stats = await stat(backup.backupPath);
-        size = stats.size;
-      } catch (error) {
-        warnings.push(`Failed to read backup ${id}: ${error instanceof Error ? error.message : String(error)}`);
-        continue;
-      }
-    }
-
+  for (const result of results) {
+    if (result.status !== 'fulfilled' || result.value === null) continue;
+    const { id, hash, size } = result.value;
+    const backup = backups.get(id);
+    if (!backup) continue;
     if (!hashGroups.has(hash)) {
       hashGroups.set(hash, []);
     }
     hashGroups.get(hash)!.push({ backup, size });
   }
+  return hashGroups;
+}
 
+function buildDuplicateResults(
+  hashGroups: Map<string, { backup: BackupInfo; size: number }[]>
+): { duplicateGroups: DuplicateGroup[]; totalDuplicates: number; totalWastedSpace: number; uniqueBackups: number } {
   const duplicateGroups: DuplicateGroup[] = [];
   let totalDuplicates = 0;
   let totalWastedSpace = 0;
@@ -66,31 +77,27 @@ export async function findDuplicates(
     if (group.length > 1) {
       const size = group[0].size;
       const wastedSpace = size * (group.length - 1);
-      
       duplicateGroups.push({
-        hash,
-        size,
-        count: group.length,
-        backups: group.map(g => g.backup.metadata),
-        wastedSpace
+        hash, size, count: group.length,
+        backups: group.map(g => g.backup.metadata), wastedSpace,
       });
-
       totalDuplicates += group.length - 1;
       totalWastedSpace += wastedSpace;
-      uniqueBackups += 1;
-    } else {
-      uniqueBackups += 1;
     }
+    uniqueBackups += 1;
   }
 
   duplicateGroups.sort((a, b) => b.wastedSpace - a.wastedSpace);
+  return { duplicateGroups, totalDuplicates, totalWastedSpace, uniqueBackups };
+}
 
-  return {
-    duplicateGroups,
-    totalDuplicates,
-    totalWastedSpace,
-    uniqueBackups
-  };
+/** Finds backups with identical content by hashing, returning groups and wasted space. */
+export async function findDuplicates(
+  backups: BackupStore
+): Promise<FindDuplicatesResult> {
+  const hashGroups = await computeBackupHashes(backups);
+  const { duplicateGroups, totalDuplicates, totalWastedSpace, uniqueBackups } = buildDuplicateResults(hashGroups);
+  return { duplicateGroups, totalDuplicates, totalWastedSpace, uniqueBackups };
 }
 
 /** Formats duplicate analysis results into a human-readable string. */
