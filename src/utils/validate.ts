@@ -2,6 +2,7 @@
 import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
 import * as path from 'node:path';
 import { config } from './config.js';
+import { HOME_DIR } from './config.js';
 import { realpath } from './fs.js';
 
 /** Wraps an unknown error as an MCP InternalError with a descriptive prefix. */
@@ -76,8 +77,6 @@ export function optionalBoolean(args: unknown, key: string): boolean | undefined
   }
   return val;
 }
-
-const HOME_DIR = process.env.HOME || process.env.USERPROFILE || '';
 
 function resolvePath(p: string): string {
   if (p.startsWith('~/')) {
