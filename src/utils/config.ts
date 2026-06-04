@@ -9,17 +9,20 @@ export interface BackupConfig {
   allowedRoots: string[];
   logLevel: 'debug' | 'info' | 'warn' | 'error';
   batchConcurrency: number;
+  maxBackupsPerFile: number;
+  maxFileSize: number;
 }
 
 const HOME_DIR = os.homedir();
 
 function parseAllowedRoots(): string[] {
   const raw = process.env.BACKUP_ALLOWED_ROOTS || '';
-  if (!raw) return [];
-  return raw
+  if (!raw) return [process.cwd()];
+  const roots = raw
     .split(':')
     .map(r => r.startsWith('~/') ? path.join(HOME_DIR, r.substring(1)) : r)
     .filter(r => r.length > 0);
+  return roots.length > 0 ? roots : [process.cwd()];
 }
 
 function parseLogLevel(): 'debug' | 'info' | 'warn' | 'error' {
@@ -36,4 +39,6 @@ export const config: BackupConfig = {
   allowedRoots: parseAllowedRoots(),
   logLevel: parseLogLevel(),
   batchConcurrency: Number.parseInt(process.env.BATCH_CONCURRENCY || '5', 10),
+  maxBackupsPerFile: Number.parseInt(process.env.MAX_BACKUPS_PER_FILE || '0', 10),
+  maxFileSize: Number.parseInt(process.env.MAX_FILE_SIZE || '104857600', 10),
 };

@@ -2,7 +2,7 @@ import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
 import { copy, pathExists, remove, mkdirp } from '../utils/fs.js';
 import * as path from 'node:path';
 import { RestoreBackupParams } from '../types/index.js';
-import { validateFilePath, backupNotFoundError, toMcpError } from '../utils/validate.js';
+import { validateAndResolveFilePath, backupNotFoundError, toMcpError } from '../utils/validate.js';
 import { BackupStore } from '../utils/store.js';
 
 /** Restores a file from a backup, optionally to a different target path. */
@@ -12,9 +12,9 @@ export async function restoreBackup(
 ): Promise<{ originalPath: string; restoredTo: string; success: boolean }> {
   const { backupId, targetPath } = params;
 
-  if (targetPath) {
-    validateFilePath(targetPath);
-  }
+  const resolvedTargetPath = targetPath
+    ? await validateAndResolveFilePath(targetPath)
+    : undefined;
 
   const backupInfo = backups.get(backupId);
   if (!backupInfo) {
@@ -23,7 +23,7 @@ export async function restoreBackup(
 
   const { metadata: { originalPath }, backupPath } = backupInfo;
 
-  validateFilePath(originalPath);
+  const resolvedOriginal = await validateAndResolveFilePath(originalPath);
 
   if (!(await pathExists(backupPath))) {
     throw new McpError(
@@ -32,7 +32,7 @@ export async function restoreBackup(
     );
   }
 
-  const restoreTo = targetPath || originalPath;
+  const restoreTo = resolvedTargetPath || resolvedOriginal;
 
   try {
     const dir = path.dirname(restoreTo);
@@ -40,15 +40,15 @@ export async function restoreBackup(
       await mkdirp(dir);
     }
 
-    if (targetPath && (await pathExists(targetPath))) {
-      await remove(targetPath);
+    if (resolvedTargetPath && (await pathExists(resolvedTargetPath))) {
+      await remove(resolvedTargetPath);
     }
 
     await copy(backupPath, restoreTo, { preserveTimestamps: true });
 
-    if (!targetPath && (await pathExists(originalPath))) {
+    if (!resolvedTargetPath && (await pathExists(resolvedOriginal))) {
       try {
-        await remove(originalPath);
+        await remove(resolvedOriginal);
       } catch {
         // Original still exists after successful restore — non-critical
       }

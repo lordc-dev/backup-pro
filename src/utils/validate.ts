@@ -1,5 +1,8 @@
+
 import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
+import * as path from 'node:path';
 import { config } from './config.js';
+import { realpath } from './fs.js';
 
 /** Wraps an unknown error as an MCP InternalError with a descriptive prefix. */
 export function toMcpError(error: unknown, prefix: string): McpError {
@@ -11,7 +14,7 @@ export function toMcpError(error: unknown, prefix: string): McpError {
 
 /** Creates an MCP error for a missing source file. */
 export function fileNotFoundError(filePath: string): McpError {
-  return new McpError(ErrorCode.InvalidParams, `Source file not found: ${filePath}`);
+  return new McpError(ErrorCode.InvalidParams, `Source file not found: ${sanitizePath(filePath)}`);
 }
 
 /** Extracts and validates a required string parameter from an arguments object. */
@@ -83,7 +86,9 @@ function resolvePath(p: string): string {
   return p;
 }
 
-/** Validates a file path for path traversal and allowed-root restrictions. */
+/** Validates a file path for path traversal and allowed-root restrictions.
+ *  If BACKUP_ALLOWED_ROOTS is not set, defaults to the current working directory
+ *  to prevent accidental exposure of the entire filesystem. */
 export function validateFilePath(filePath: string): void {
   const resolved = resolvePath(filePath);
   const normalized = normalizePath(resolved);
@@ -92,12 +97,29 @@ export function validateFilePath(filePath: string): void {
     throw new McpError(ErrorCode.InvalidParams, 'Invalid file path: path traversal not allowed');
   }
 
-  if (config.allowedRoots.length > 0) {
-    const isAllowed = config.allowedRoots.some(root => normalized.startsWith(root));
-    if (!isAllowed) {
-      throw new McpError(ErrorCode.InvalidParams, `Access denied: path outside allowed roots`);
-    }
+  if (!config.allowedRoots.some(root => normalized.startsWith(root))) {
+    throw new McpError(ErrorCode.InvalidParams, `Access denied: path outside allowed roots`);
   }
+}
+
+/** Validates a file path and then resolves symlinks, re-validating the real path against allowed roots.
+ *  If BACKUP_ALLOWED_ROOTS is not set, defaults to the current working directory
+ *  to prevent accidental exposure of the entire filesystem. */
+export async function validateAndResolveFilePath(filePath: string): Promise<string> {
+  validateFilePath(filePath);
+
+  const resolved = await realpath(filePath);
+  if (!resolved) {
+    return resolvePath(filePath);
+  }
+
+  const normalizedReal = normalizePath(resolved);
+
+  if (!config.allowedRoots.some(root => normalizedReal.startsWith(root))) {
+    throw new McpError(ErrorCode.InvalidParams, `Access denied: resolved path outside allowed roots`);
+  }
+
+  return resolved;
 }
 
 function normalizePath(p: string): string {
@@ -108,6 +130,16 @@ function normalizePath(p: string): string {
     return acc;
   }, []);
   return (isAbsolute ? '/' : '') + segments.join('/');
+}
+
+/** Sanitizes a file path for error messages, showing only the basename
+ *  to prevent information disclosure in production. */
+export function sanitizePath(filePath: string): string {
+  const basename = path.basename(filePath);
+  const dir = path.dirname(filePath);
+  if (dir === '/' || dir === '.') return basename;
+  const parentDir = path.basename(dir);
+  return parentDir ? `${parentDir}/${basename}` : basename;
 }
 
 /** Creates an MCP error for a missing backup. */
