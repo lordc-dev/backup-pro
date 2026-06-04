@@ -4,6 +4,7 @@ import * as path from 'node:path';
 import { RestoreBackupParams } from '../types/index.js';
 import { validateAndResolveFilePath, backupNotFoundError, toMcpError } from '../utils/validate.js';
 import { BackupStore } from '../utils/store.js';
+import { log } from '../utils/logger.js';
 
 /** Restores a file from a backup, optionally to a different target path. */
 export async function restoreBackup(
@@ -49,8 +50,8 @@ export async function restoreBackup(
     if (!resolvedTargetPath && (await pathExists(resolvedOriginal))) {
       try {
         await remove(resolvedOriginal);
-      } catch {
-        // Original still exists after successful restore — non-critical
+      } catch (error) {
+        log.debug('restore', 'Failed to remove original file after restore', { path: resolvedOriginal, error: error instanceof Error ? error.message : String(error) });
       }
     }
 

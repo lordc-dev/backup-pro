@@ -36,14 +36,19 @@ export async function findDuplicates(
     let hash: string;
     let size: number;
 
-    try {
-      const content = await readFile(backup.backupPath);
-      hash = calculateFileHash(content);
-      const stats = await stat(backup.backupPath);
-      size = stats.size;
-    } catch (error) {
-      warnings.push(`Failed to read backup ${id}: ${error instanceof Error ? error.message : String(error)}`);
-      continue;
+    if (backup.metadata.fileHash && backup.metadata.size) {
+      hash = backup.metadata.fileHash;
+      size = backup.metadata.size;
+    } else {
+      try {
+        const content = await readFile(backup.backupPath);
+        hash = calculateFileHash(content);
+        const stats = await stat(backup.backupPath);
+        size = stats.size;
+      } catch (error) {
+        warnings.push(`Failed to read backup ${id}: ${error instanceof Error ? error.message : String(error)}`);
+        continue;
+      }
     }
 
     if (!hashGroups.has(hash)) {

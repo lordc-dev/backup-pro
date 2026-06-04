@@ -50,7 +50,7 @@ async function getRgPath(): Promise<string | null> {
       return resolved;
     }
   } catch {
-    // rg not found in PATH
+    // rg not found in PATH — will try candidate paths
   }
 
   for (const candidate of CANDIDATE_PATHS) {
@@ -60,7 +60,7 @@ async function getRgPath(): Promise<string | null> {
       if (isDebugMode()) log.debug("ripgrep", `Using ripgrep: ${candidate}`);
       return candidate;
     } catch {
-      // rg not found at candidate path
+      // rg not found at candidate path — continue probing
     }
   }
 

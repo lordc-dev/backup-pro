@@ -1,4 +1,5 @@
 import { promises as fsp } from 'node:fs';
+import { log } from './logger.js';
 
 export const readFile = fsp.readFile;
 
@@ -7,7 +8,8 @@ export async function realpath(filePath: string): Promise<string | undefined> {
   try {
     const resolved = await fsp.realpath(filePath);
     return resolved;
-  } catch {
+  } catch (error) {
+    log.debug('fs', 'realpath failed, returning undefined', { path: filePath, error: error instanceof Error ? error.message : String(error) });
     return undefined;
   }
 }
@@ -33,6 +35,7 @@ export async function pathExists(filePath: string): Promise<boolean> {
     await fsp.access(filePath);
     return true;
   } catch {
+    log.debug('fs', 'pathExists check failed, returning false');
     return false;
   }
 }
@@ -52,7 +55,6 @@ export async function remove(filePath: string): Promise<void> {
 export async function copy(src: string, dest: string, options?: { preserveTimestamps?: boolean }): Promise<void> {
   await fsp.cp(src, dest, {
     recursive: true,
-    mode: 0 as unknown as number,
     ...(options?.preserveTimestamps ? {} : {}),
   });
   if (options?.preserveTimestamps) {

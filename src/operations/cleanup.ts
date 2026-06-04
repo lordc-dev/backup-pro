@@ -92,8 +92,8 @@ export async function cleanupBackups(
           try {
             const stats = await stat(backup.backupPath);
             freedSpace += stats.size;
-          } catch {
-            // Size unknown, still proceed with deletion
+          } catch (error) {
+          log.debug('cleanup', `Failed to stat backup file for size`, { path: backup.backupPath, error: error instanceof Error ? error.message : String(error) });
           }
         }
       } else {
