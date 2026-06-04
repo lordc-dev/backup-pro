@@ -27,6 +27,36 @@ export class Semaphore {
   }
 }
 
+/** Rate limiter for controlling request throughput over time. */
+export class RateLimiter {
+  private timestamps: number[] = [];
+
+  constructor(
+    private maxRequests: number,
+    private windowMs: number
+  ) {}
+
+  /** Wait until a request slot is available within the rate limit window. */
+  async acquire(): Promise<void> {
+    const now = Date.now();
+    this.timestamps = this.timestamps.filter(t => now - t < this.windowMs);
+    if (this.timestamps.length < this.maxRequests) {
+      this.timestamps.push(now);
+      return;
+    }
+    const oldestInWindow = this.timestamps[0];
+    const waitMs = this.windowMs - (now - oldestInWindow) + 1;
+    await new Promise<void>(resolve => setTimeout(resolve, waitMs));
+    this.timestamps.push(Date.now());
+  }
+}
+
+/** Global rate limiter for backup operations: 60 requests per 60 seconds. */
+export const backupRateLimiter = new RateLimiter(
+  Number(process.env.BACKUP_RATE_LIMIT_MAX ?? '60'),
+  Number(process.env.BACKUP_RATE_LIMIT_WINDOW_MS ?? '60000')
+);
+
 type SettledResult<T> = { status: 'fulfilled'; value: T } | { status: 'rejected'; reason: unknown };
 
 /** Runs an async function over items with bounded concurrency, returning settled results. */

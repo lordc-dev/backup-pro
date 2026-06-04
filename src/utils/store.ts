@@ -7,15 +7,17 @@ import { log } from './logger.js';
 export class BackupStore extends Map<string, BackupInfo> {
   private dirty = false;
   private saveInterval: ReturnType<typeof setInterval> | null = null;
+  public readonly loadError?: string;
 
-  private constructor() {
+  private constructor(loadError?: string) {
     super();
+    this.loadError = loadError;
   }
 
   /** Creates and initializes a BackupStore by loading persisted metadata. */
   static async create(): Promise<BackupStore> {
-    const store = new BackupStore();
-    const { backups: loaded, integrityWarning } = await loadBackupMetadata();
+    const { backups: loaded, integrityWarning, loadError } = await loadBackupMetadata();
+    const store = new BackupStore(loadError);
     for (const [key, value] of loaded.entries()) {
       super.prototype.set.call(store, key, value);
     }

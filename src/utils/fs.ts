@@ -3,7 +3,6 @@ import { log } from './logger.js';
 
 export const readFile = fsp.readFile;
 
-/** Resolves symlinks and normalizes the path. Returns undefined if the path does not exist. */
 export async function realpath(filePath: string): Promise<string | undefined> {
   try {
     const resolved = await fsp.realpath(filePath);
@@ -14,20 +13,39 @@ export async function realpath(filePath: string): Promise<string | undefined> {
   }
 }
 
-/** Resolves symlinks and validates the real path stays within allowed roots.
- *  Returns the resolved path, or throws if the path doesn't exist or is outside roots. */
-export async function resolveAndValidatePath(filePath: string, allowedRoots: string[]): Promise<string> {
-  const resolved = await realpath(filePath);
-  if (!resolved) {
-    throw new Error(`Path does not exist: ${filePath}`);
-  }
-  if (allowedRoots.length > 0) {
-    const isAllowed = allowedRoots.some(root => resolved.startsWith(root));
-    if (!isAllowed) {
-      throw new Error(`Access denied: path outside allowed roots`);
+
+async function safeOpenAndVerify(filePath: string): Promise<{ fh: import('node:fs/promises').FileHandle; content: Buffer; stat: import('node:fs').Stats }> {
+  const fh = await fsp.open(filePath, 'r');
+  try {
+    const beforeStat = await fh.stat();
+    const content = await fh.readFile();
+    const afterStat = await fh.stat();
+    if (beforeStat.ino !== afterStat.ino || beforeStat.dev !== afterStat.dev) {
+      throw new Error('File identity changed during operation — possible TOCTOU race condition');
     }
+    return { fh, content, stat: beforeStat };
+  } catch (err) {
+    await fh.close();
+    throw err;
   }
-  return resolved;
+}
+
+export async function safeReadFile(filePath: string): Promise<Buffer> {
+  const { fh, content } = await safeOpenAndVerify(filePath);
+  await fh.close();
+  return content;
+}
+
+export async function safeCopyFile(src: string, dest: string, options?: { preserveTimestamps?: boolean }): Promise<void> {
+  const { fh, content, stat: srcStat } = await safeOpenAndVerify(src);
+  try {
+    await fsp.writeFile(dest, content);
+    if (options?.preserveTimestamps) {
+      await fsp.utimes(dest, srcStat.atime, srcStat.mtime);
+    }
+  } finally {
+    await fh.close();
+  }
 }
 
 export async function pathExists(filePath: string): Promise<boolean> {
@@ -53,13 +71,17 @@ export async function remove(filePath: string): Promise<void> {
 }
 
 export async function copy(src: string, dest: string, options?: { preserveTimestamps?: boolean }): Promise<void> {
-  await fsp.cp(src, dest, {
-    recursive: true,
-    ...(options?.preserveTimestamps ? {} : {}),
-  });
-  if (options?.preserveTimestamps) {
-    const stats = await fsp.stat(src);
-    await fsp.utimes(dest, stats.atime, stats.mtime);
+  try {
+    await safeCopyFile(src, dest, options);
+  } catch (safeCopyError) {
+    if (safeCopyError instanceof Error && safeCopyError.message.includes('TOCTOU')) {
+      throw safeCopyError;
+    }
+    await fsp.cp(src, dest, { recursive: true });
+    if (options?.preserveTimestamps) {
+      const srcStat = await fsp.stat(src);
+      await fsp.utimes(dest, srcStat.atime, srcStat.mtime);
+    }
   }
 }
 
