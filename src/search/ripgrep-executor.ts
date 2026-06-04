@@ -136,6 +136,18 @@ function releaseSlot(): void {
   }
 }
 
+function buildFinalArgs(args: string[], pcre2: boolean): string[] {
+  return pcre2 ? ["--pcre2", ...args] : args;
+}
+
+function handleRgResult(code: number | null, output: string, errorOutput: string, _args: string[], _timeout: number): string {
+  if (code === 0 || code === 1) {
+    return output;
+  }
+  const codeNum = code ?? -1;
+  throw new BaseError(`ripgrep exited with code ${codeNum}`, { context: { code: codeNum, stderr: errorOutput }, code: ECODE.SEARCH_EXEC });
+}
+
 export async function executeRipgrep(args: string[], pcre2 = false): Promise<string> {
   const rgExecutable = await ensureRipgrep();
 
@@ -156,7 +168,7 @@ export async function executeRipgrep(args: string[], pcre2 = false): Promise<str
     let errorOutput = "";
     let timedOut = false;
 
-    const finalArgs = pcre2 ? ["--pcre2", ...args] : args;
+    const finalArgs = buildFinalArgs(args, pcre2);
 
     if (isDebugMode()) {
       log.debug("ripgrep", `${rgExecutable} ${finalArgs.join(" ")}`);
@@ -184,11 +196,10 @@ export async function executeRipgrep(args: string[], pcre2 = false): Promise<str
         reject(new BaseError(`ripgrep timed out after ${RG_TIMEOUT_MS}ms`, { context: { args, timeout: RG_TIMEOUT_MS }, code: ECODE.SEARCH_TIMEOUT }));
         return;
       }
-      if (code === 0 || code === 1) {
-        resolve(output);
-      } else {
-        const codeNum = code ?? -1;
-        reject(new BaseError(`ripgrep exited with code ${codeNum}`, { context: { code: codeNum, stderr: errorOutput }, code: ECODE.SEARCH_EXEC }));
+      try {
+        resolve(handleRgResult(code, output, errorOutput, args, RG_TIMEOUT_MS));
+      } catch (err) {
+        reject(err);
       }
     });
 
@@ -219,7 +230,7 @@ export async function executeRipgrepWithLimit(
   return new Promise((resolve) => {
     let output = "";
     let killed = false;
-    const finalArgs = pcre2 ? ["--pcre2", ...args] : args;
+    const finalArgs = buildFinalArgs(args, pcre2);
     const rg = spawn(rgExecutable, finalArgs);
 
     const timer = setTimeout(() => {
