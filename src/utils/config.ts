@@ -20,15 +20,12 @@ export const SERVER_VERSION = '0.6.0';
 
 function parseAllowedRoots(): string[] {
   const raw = process.env.BACKUP_ALLOWED_ROOTS || '';
-  if (!raw) {
-    process.stderr.write('[backup-pro] WARNING: BACKUP_ALLOWED_ROOTS not set. Defaulting to current directory. Set it explicitly in production to restrict file access.\n');
-    return [process.cwd()];
-  }
+  if (!raw) return [];
   const roots = raw
     .split(':')
     .map(r => r.startsWith('~/') ? path.join(HOME_DIR, r.substring(1)) : r)
     .filter(r => r.length > 0);
-  return roots.length > 0 ? roots : [process.cwd()];
+  return roots;
 }
 
 function parseLogLevel(): 'debug' | 'info' | 'warn' | 'error' {

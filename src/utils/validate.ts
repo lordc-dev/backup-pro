@@ -95,7 +95,7 @@ export function validateFilePath(filePath: string): void {
     throw new McpError(ErrorCode.InvalidParams, 'Invalid file path: path traversal not allowed');
   }
 
-  if (!config.allowedRoots.some(root => normalized.startsWith(root))) {
+  if (config.allowedRoots.length > 0 && !config.allowedRoots.some(root => normalized.startsWith(root))) {
     throw new McpError(ErrorCode.InvalidParams, `Access denied: path outside allowed roots`);
   }
 }
@@ -113,7 +113,7 @@ export async function validateAndResolveFilePath(filePath: string): Promise<stri
 
   const normalizedReal = normalizePath(resolved);
 
-  if (!config.allowedRoots.some(root => normalizedReal.startsWith(root))) {
+  if (config.allowedRoots.length > 0 && !config.allowedRoots.some(root => normalizedReal.startsWith(root))) {
     throw new McpError(ErrorCode.InvalidParams, `Access denied: resolved path outside allowed roots`);
   }
 
