@@ -75,11 +75,22 @@ Gehitu zure MCP bezeroaren konfigurazioan:
 
 #### Mugak
 
-| Aldagaia                | Lehenetsia | Deskribapena                                                             |
-| ----------------------- | ---------- | ------------------------------------------------------------------------ |
-| `AUTO_SAVE_INTERVAL_MS` | `30000`    | Zenbat maiztasunekin gordetzen diren metadatuak automatikoki (ms)        |
-| `MAX_PREVIEW_CHARS`     | `10000`    | Aurreikuspeneko karaktere maximoa — testuingurua lehorrtzea eragozten du |
-| `BATCH_CONCURRENCY`     | `5`        | Batch eragiketetako fitxategi-kopia paralelo maximoa                     |
+| Aldagaia                | Lehenetsia | Deskribapena                                                                  |
+| ----------------------- | ---------- | ---------------------------------------------------------------------------- |
+| `AUTO_SAVE_INTERVAL_MS` | `30000`    | Zenbat maiztasunekin gordetzen diren metadatuak automatikoki (ms)            |
+| `MAX_PREVIEW_CHARS`     | `10000`    | Aurreikuspeneko karaktere maximoa — testuingurua lehorrtzea eragozten du   |
+| `BATCH_CONCURRENCY`     | `5`        | Batch eragiketetako fitxategi-kopia paralelo maximoa (min: 1)              |
+| `MAX_BACKUPS_PER_FILE`  | `0`            | Fitxategiko backup maximoak garbiketaren abisua egin baino lehen (0 = mugagabea) |
+| `MAX_FILE_SIZE`         | `104857600`    | Backup eragiketetarako fitxategi-tamaina maximoa (100 MB lehenetsia)       |
+| `MAX_DIFF_SIZE`         | `10485760`     | Diff eragiketetarako fitxategi-tamaina maximoa (10 MB lehenetsia)          |
+| `MAX_HASH_SIZE`         | `104857600`    | get/verify-n hash-kalkulurako fitxategi-tamaina maximoa (100 MB lehenetsia) |
+
+#### Bilaketa (ripgrep)
+
+| Aldagaia               | Lehenetsia | Deskribapena                                           |
+| ---------------------- | ---------- | ------------------------------------------------------- |
+| `MCP_MAX_CONCURRENT_RG`| `8`            | Ripgrep prozesu paralelo maximoa (min: 1)              |
+| `MCP_RG_TIMEOUT_MS`    | `30000`        | Ripgrep prozesuaren itxarote-denbora ms-tan (min: 1000) |
 
 #### Arazketa
 
@@ -139,10 +150,27 @@ Gehitu zure MCP bezeroaren konfigurazioan:
 
 ```
 src/
-├── index.ts              # Zerbitzariaren sarrera, MCP maneiatzaileak
+├── index.ts              # Zerbitzariaren sarrera, MCP maneiatzaileak, maiztasun-mugagailua
+├── errors/               # Errore-hierarkia (BaseError bilaketa-geruzarako)
 ├── operations/           # Negozio-logika (fitxategi bat domeinu bakoitzeko)
-├── tools/                # MCP tresnen definizioak
+│   ├── filter-utils.ts   # Iragazki+ordenazioa SSOT partekatua (list + search)
+│   ├── create.ts         # Backup sorkuntza atomikoa (copyAtomic)
+│   ├── restore.ts        # Berrespena atomikoa (temp + rename)
+│   ├── diff.ts           # Myers diff konparazioa
+│   └── ...
+├── search/               # Ripgrep integrazioa
+│   ├── ripgrep-executor.ts # Semaforoz mugatutako prozesu-exekutatzailea
+│   ├── ripgrep-args.ts    # Argumentu-egilea
+│   └── ripgrep-types.ts   # Emaitza-motak
+├── tools/                # MCP tresnen definizioak (readOnly bandera)
+├── types/                # TypeScript interfazeak (BackupMetadata, parametroak)
+├── validation/           # Regex balidazioa
 └── utils/                # Biltegia, iraunkortasuna, hashing-a, konfigurazioa, erregistratzailea
+    ├── concurrency.ts    # Semaforoa, parallelMap, maiztasun-mugagailua
+    ├── config.ts         # Ingurune-aldagaien analisia balidazioarekin
+    ├── fs.ts             # Kopia/idazketa atomikoa, bide-headersak
+    ├── myers-diff.ts     # LCS diff algoritmoa (O(n*m) mugatua)
+    └── validate.ts       # Path traversal + erro-murrizketa
 ```
 
 ### Erabaki gakoenak

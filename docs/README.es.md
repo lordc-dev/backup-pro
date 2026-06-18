@@ -75,11 +75,22 @@ Añade a la configuración de tu cliente MCP:
 
 #### Límites
 
-| Variable                | Predeterminado | Descripción                                                           |
-| ----------------------- | -------------- | --------------------------------------------------------------------- |
-| `AUTO_SAVE_INTERVAL_MS` | `30000`        | Cada cuánto se auto-guardan los metadatos (ms)                        |
-| `MAX_PREVIEW_CHARS`     | `10000`        | Caracteres máximos en la vista previa — evita que el contexto explote |
-| `BATCH_CONCURRENCY`     | `5`            | Copias de archivo paralelas máximas en operaciones por lotes          |
+| Variable                | Predeterminado | Descripción                                                                  |
+| ----------------------- | -------------- | ---------------------------------------------------------------------------- |
+| `AUTO_SAVE_INTERVAL_MS` | `30000`        | Cada cuánto se auto-guardan los metadatos (ms)                               |
+| `MAX_PREVIEW_CHARS`     | `10000`        | Caracteres máximos en la vista previa — evita que el contexto explote        |
+| `BATCH_CONCURRENCY`     | `5`            | Copias de archivo paralelas máximas en operaciones por lotes (mín: 1)        |
+| `MAX_BACKUPS_PER_FILE`  | `0`            | Respaldos máximos por archivo antes de advertir limpieza (0 = ilimitado)    |
+| `MAX_FILE_SIZE`         | `104857600`    | Tamaño máximo de archivo para operaciones de respaldo (100 MB por defecto)   |
+| `MAX_DIFF_SIZE`         | `10485760`     | Tamaño máximo de archivo para operaciones de diff (10 MB por defecto)        |
+| `MAX_HASH_SIZE`         | `104857600`    | Tamaño máximo de archivo para hash en get/verify (100 MB por defecto)       |
+
+#### Búsqueda (ripgrep)
+
+| Variable               | Predeterminado | Descripción                                              |
+| ---------------------- | -------------- | ------------------------------------------------------- |
+| `MCP_MAX_CONCURRENT_RG`| `8`            | Procesos ripgrep paralelos máximos (mín: 1)            |
+| `MCP_RG_TIMEOUT_MS`    | `30000`        | Tiempo de espera del proceso ripgrep en ms (mín: 1000)   |
 
 #### Depuración
 
@@ -139,10 +150,27 @@ Añade a la configuración de tu cliente MCP:
 
 ```
 src/
-├── index.ts              # Punto de entrada del servidor, manejadores MCP
+├── index.ts              # Punto de entrada del servidor, manejadores MCP, limitador de frecuencia
+├── errors/               # Jerarquía de errores (BaseError para capa de búsqueda)
 ├── operations/           # Lógica de negocio (un archivo por dominio)
-├── tools/                # Definiciones de herramientas MCP
+│   ├── filter-utils.ts   # SSOT compartido de filtro+orden (list + search)
+│   ├── create.ts         # Creación atómica de respaldos (copyAtomic)
+│   ├── restore.ts        # Restauración atómica (temp + rename)
+│   ├── diff.ts           # Comparación Myers diff
+│   └── ...
+├── search/               # Integración ripgrep
+│   ├── ripgrep-executor.ts # Ejecutor de procesos limitado por semáforo
+│   ├── ripgrep-args.ts    # Constructor de argumentos
+│   └── ripgrep-types.ts   # Tipos de resultado
+├── tools/                # Definiciones de herramientas MCP (flag readOnly)
+├── types/                # Interfaces TypeScript (BackupMetadata, parámetros)
+├── validation/           # Validación con regex
 └── utils/                # Almacenamiento, persistencia, hashing, configuración, logger
+    ├── concurrency.ts    # Semáforo, parallelMap, limitador de frecuencia
+    ├── config.ts         # Análisis de variables de entorno con validación
+    ├── fs.ts             # Copia/escritura atómica, helpers de rutas
+    ├── myers-diff.ts     # Algoritmo LCS diff (O(n*m) limitado)
+    └── validate.ts       # Path traversal + restricción de raíces
 ```
 
 ### Decisiones clave

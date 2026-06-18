@@ -75,11 +75,22 @@ Adiciona à configuração do teu cliente MCP:
 
 #### Limites
 
-| Variável                | Predefinição | Descrição                                                             |
-| ----------------------- | ------------ | --------------------------------------------------------------------- |
-| `AUTO_SAVE_INTERVAL_MS` | `30000`      | Frequência de auto-guarda dos metadados (ms)                          |
+| Variável                | Predefinição | Descrição                                                                  |
+| ----------------------- | ------------ | ---------------------------------------------------------------------------- |
+| `AUTO_SAVE_INTERVAL_MS` | `30000`      | Frequência de auto-guarda dos metadados (ms)                              |
 | `MAX_PREVIEW_CHARS`     | `10000`      | Máximo de caracteres na pré-visualização — evita explosão de contexto |
-| `BATCH_CONCURRENCY`     | `5`          | Máximo de cópias de ficheiros em paralelo em operações em lote        |
+| `BATCH_CONCURRENCY`     | `5`          | Máximo de cópias de ficheiros em paralelo em operações em lote (mín: 1)   |
+| `MAX_BACKUPS_PER_FILE`  | `0`            | Backups máximos por ficheiro antes de avisar de limpeza (0 = ilimitado)    |
+| `MAX_FILE_SIZE`         | `104857600`    | Tamanho máximo de ficheiro para operações de backup (100 MB por defeito)   |
+| `MAX_DIFF_SIZE`         | `10485760`     | Tamanho máximo de ficheiro para operações de diff (10 MB por defeito)      |
+| `MAX_HASH_SIZE`         | `104857600`    | Tamanho máximo de ficheiro para hash em get/verify (100 MB por defeito)     |
+
+#### Pesquisa (ripgrep)
+
+| Variável               | Predefinição | Descrição                                              |
+| ---------------------- | ------------ | ------------------------------------------------------- |
+| `MCP_MAX_CONCURRENT_RG`| `8`            | Processos ripgrep paralelos máximos (mín: 1)        |
+| `MCP_RG_TIMEOUT_MS`    | `30000`        | Tempo de espera do processo ripgrep em ms (mín: 1000) |
 
 #### Depuração
 
@@ -139,10 +150,27 @@ Adiciona à configuração do teu cliente MCP:
 
 ```
 src/
-├── index.ts              # Entrada do servidor, handlers MCP
+├── index.ts              # Entrada do servidor, handlers MCP, limitador de frequência
+├── errors/               # Hierarquia de erros (BaseError para camada de pesquisa)
 ├── operations/           # Lógica de negócio (um ficheiro por domínio)
-├── tools/                # Definições de ferramentas MCP
+│   ├── filter-utils.ts   # SSOT partilhado de filtro+ordenação (list + search)
+│   ├── create.ts         # Criação atómica de backups (copyAtomic)
+│   ├── restore.ts        # Restauração atómica (temp + rename)
+│   ├── diff.ts           # Comparação Myers diff
+│   └── ...
+├── search/               # Integração ripgrep
+│   ├── ripgrep-executor.ts # Executor de processos limitado por semáforo
+│   ├── ripgrep-args.ts    # Construtor de argumentos
+│   └── ripgrep-types.ts   # Tipos de resultado
+├── tools/                # Definições de ferramentas MCP (flag readOnly)
+├── types/                # Interfaces TypeScript (BackupMetadata, parâmetros)
+├── validation/           # Validação com regex
 └── utils/                # Store, persistência, hashing, config, logger
+    ├── concurrency.ts    # Semáforo, parallelMap, limitador de frequência
+    ├── config.ts         # Análise de variáveis de ambiente com validação
+    ├── fs.ts             # Cópia/escrita atómica, helpers de caminhos
+    ├── myers-diff.ts     # Algoritmo LCS diff (O(n*m) limitado)
+    └── validate.ts       # Path traversal + restrição de raízes
 ```
 
 ### Decisões Chave

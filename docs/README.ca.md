@@ -75,11 +75,22 @@ Afegeix a la configuració del teu client MCP:
 
 #### Límits
 
-| Variable                | Per defecte | Descripció                                                          |
-| ----------------------- | ----------- | ------------------------------------------------------------------- |
-| `AUTO_SAVE_INTERVAL_MS` | `30000`     | Amb quina freqüència les metadades es desen automàticament (ms)     |
-| `MAX_PREVIEW_CHARS`     | `10000`     | Màxim de caràcters a la vista prèvia — evita que el context exploti |
-| `BATCH_CONCURRENCY`     | `5`         | Màxim de còpies de fitxers en paral·lel en operacions per lots      |
+| Variable                | Per defecte | Descripció                                                                  |
+| ----------------------- | ----------- | ---------------------------------------------------------------------------- |
+| `AUTO_SAVE_INTERVAL_MS` | `30000`     | Amb quina freqüència les metadades es desen automàticament (ms)              |
+| `MAX_PREVIEW_CHARS`     | `10000`     | Màxim de caràcters a la vista prèvia — evita que el context exploti          |
+| `BATCH_CONCURRENCY`     | `5`         | Màxim de còpies de fitxers en paral·lel en operacions per lots (mín: 1)      |
+| `MAX_BACKUPS_PER_FILE`  | `0`            | Còpies de seguretat màximes per fitxer abans d'avisar de neteja (0 = il·limitat) |
+| `MAX_FILE_SIZE`         | `104857600`    | Mida màxima de fitxer per a operacions de còpia de seguretat (100 MB per defecte) |
+| `MAX_DIFF_SIZE`         | `10485760`     | Mida màxima de fitxer per a operacions de diff (10 MB per defecte)            |
+| `MAX_HASH_SIZE`         | `104857600`    | Mida màxima de fitxer per a hash en get/verify (100 MB per defecte)           |
+
+#### Cerca (ripgrep)
+
+| Variable               | Per defecte | Descripció                                              |
+| ---------------------- | ----------- | ------------------------------------------------------- |
+| `MCP_MAX_CONCURRENT_RG`| `8`            | Màxim de processos ripgrep en paral·lel (mín: 1)         |
+| `MCP_RG_TIMEOUT_MS`    | `30000`        | Temps d'espera del procés ripgrep en ms (mín: 1000)      |
 
 #### Depuració
 
@@ -139,10 +150,27 @@ Afegeix a la configuració del teu client MCP:
 
 ```
 src/
-├── index.ts              # Entrada del servidor, gestors MCP
+├── index.ts              # Entrada del servidor, gestors MCP, limitador de freqüència
+├── errors/               # Jerarquia d'errors (BaseError per a capa de cerca)
 ├── operations/           # Lògica de negoci (un fitxer per domini)
-├── tools/                # Definicions d'eines MCP
+│   ├── filter-utils.ts   # SSOT compartit de filtre+ordenació (list + search)
+│   ├── create.ts         # Creació atòmica de còpies de seguretat (copyAtomic)
+│   ├── restore.ts        # Restauració atòmica (temp + rename)
+│   ├── diff.ts           # Comparació Myers diff
+│   └── ...
+├── search/               # Integració ripgrep
+│   ├── ripgrep-executor.ts # Executor de processos limitat per semàfor
+│   ├── ripgrep-args.ts    # Constructor d'arguments
+│   └── ripgrep-types.ts   # Tipus de resultat
+├── tools/                # Definicions d'eines MCP (flag readOnly)
+├── types/                # Interfícies TypeScript (BackupMetadata, paràmetres)
+├── validation/           # Validació amb regex
 └── utils/                # Emmagatzematge, persistència, hashing, configuració, registre
+    ├── concurrency.ts    # Semàfor, parallelMap, limitador de freqüència
+    ├── config.ts         # Anàlisi de variables d'entorn amb validació
+    ├── fs.ts             # Còpia/escriptura atòmica, helpers de rutes
+    ├── myers-diff.ts     # Algoritme LCS diff (O(n*m) limitat)
+    └── validate.ts       # Path traversal + restricció d'arrels
 ```
 
 ### Decisions clau

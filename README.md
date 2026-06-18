@@ -75,11 +75,22 @@ Add to your MCP client config:
 
 #### Limits
 
-| Variable                | Default | Description                                              |
-| ----------------------- | ------- | -------------------------------------------------------- |
-| `AUTO_SAVE_INTERVAL_MS` | `30000` | How often metadata auto-saves (ms)                       |
-| `MAX_PREVIEW_CHARS`     | `10000` | Max characters in preview — keeps context from exploding |
-| `BATCH_CONCURRENCY`     | `5`     | Max parallel file copies in batch operations             |
+| Variable                | Default   | Description                                                              |
+| ----------------------- | --------- | ------------------------------------------------------------------------ |
+| `AUTO_SAVE_INTERVAL_MS` | `30000`   | How often metadata auto-saves (ms)                                       |
+| `MAX_PREVIEW_CHARS`     | `10000`   | Max characters in preview — keeps context from exploding                 |
+| `BATCH_CONCURRENCY`     | `5`       | Max parallel file copies in batch operations (min: 1)                   |
+| `MAX_BACKUPS_PER_FILE`  | `0`       | Max backups per file before cleanup warns (0 = unlimited)                |
+| `MAX_FILE_SIZE`         | `104857600` | Max file size for backup operations (100 MB default)                   |
+| `MAX_DIFF_SIZE`         | `10485760`  | Max file size for diff operations (10 MB default)                      |
+| `MAX_HASH_SIZE`         | `104857600` | Max file size for hash computation in get/verify (100 MB default)      |
+
+#### Search (ripgrep)
+
+| Variable                | Default  | Description                                                |
+| ----------------------- | -------- | ---------------------------------------------------------- |
+| `MCP_MAX_CONCURRENT_RG` | `8`      | Max concurrent ripgrep processes (min: 1)                  |
+| `MCP_RG_TIMEOUT_MS`     | `30000`  | Ripgrep process timeout in ms (min: 1000)                  |
 
 #### Debugging
 
@@ -139,10 +150,27 @@ Add to your MCP client config:
 
 ```
 src/
-├── index.ts              # Server entry, MCP handlers
+├── index.ts              # Server entry, MCP handlers, rate limiter
+├── errors/               # Error hierarchy (BaseError for search layer)
 ├── operations/           # Business logic (one file per domain)
-├── tools/                # MCP tool definitions
+│   ├── filter-utils.ts   # Shared filter+sort SSOT (list + search)
+│   ├── create.ts         # Atomic backup creation (copyAtomic)
+│   ├── restore.ts        # Atomic restore (temp + rename)
+│   ├── diff.ts           # Myers diff comparison
+│   └── ...
+├── search/               # Ripgrep integration
+│   ├── ripgrep-executor.ts # Semaphore-limited process runner
+│   ├── ripgrep-args.ts    # Argument builder
+│   └── ripgrep-types.ts   # Result types
+├── tools/                # MCP tool definitions (readOnly flag)
+├── types/                # TypeScript interfaces (BackupMetadata, params)
+├── validation/           # Regex validation
 └── utils/                # Store, persistence, hashing, config, logger
+    ├── concurrency.ts    # Semaphore, parallelMap, rate limiter
+    ├── config.ts         # Env-var parsing with validation
+    ├── fs.ts             # Atomic copy/write, path helpers
+    ├── myers-diff.ts     # LCS diff algorithm (O(n*m) capped)
+    └── validate.ts       # Path traversal + root restriction
 ```
 
 ### Key Decisions

@@ -75,11 +75,22 @@ Ajoutez à la configuration de votre client MCP :
 
 #### Limites
 
-| Variable                | Par défaut | Description                                                   |
-| ----------------------- | ---------- | ------------------------------------------------------------- |
-| `AUTO_SAVE_INTERVAL_MS` | `30000`    | Fréquence de sauvegarde automatique des métadonnées (ms)      |
-| `MAX_PREVIEW_CHARS`     | `10000`    | Caractères max dans l'aperçu — évite l'explosion du contexte  |
-| `BATCH_CONCURRENCY`     | `5`        | Copies de fichiers parallèles max dans les opérations par lot |
+| Variable                | Par défaut | Description                                                                  |
+| ----------------------- | ---------- | ---------------------------------------------------------------------------- |
+| `AUTO_SAVE_INTERVAL_MS` | `30000`    | Fréquence de sauvegarde automatique des métadonnées (ms)                     |
+| `MAX_PREVIEW_CHARS`     | `10000`    | Caractères max dans l'aperçu — évite l'explosion du contexte                 |
+| `BATCH_CONCURRENCY`     | `5`        | Copies de fichiers parallèles max dans les opérations par lot (min : 1)      |
+| `MAX_BACKUPS_PER_FILE`  | `0`            | Sauvegardes max par fichier avant alerte de nettoyage (0 = illimité)         |
+| `MAX_FILE_SIZE`         | `104857600`    | Taille max de fichier pour les opérations de sauvegarde (100 MB par défaut)  |
+| `MAX_DIFF_SIZE`         | `10485760`     | Taille max de fichier pour les opérations de diff (10 MB par défaut)        |
+| `MAX_HASH_SIZE`         | `104857600`    | Taille max de fichier pour le hash dans get/verify (100 MB par défaut)      |
+
+#### Recherche (ripgrep)
+
+| Variable               | Par défaut | Description                                              |
+| ---------------------- | ---------- | ------------------------------------------------------- |
+| `MCP_MAX_CONCURRENT_RG`| `8`            | Processus ripgrep parallèles max (min : 1)             |
+| `MCP_RG_TIMEOUT_MS`    | `30000`        | Délai d'attente du processus ripgrep en ms (min : 1000) |
 
 #### Débogage
 
@@ -139,10 +150,27 @@ Ajoutez à la configuration de votre client MCP :
 
 ```
 src/
-├── index.ts              # Point d'entrée du serveur, gestionnaires MCP
+├── index.ts              # Point d'entrée du serveur, gestionnaires MCP, limiteur de fréquence
+├── errors/               # Hiérarchie d'erreurs (BaseError pour la couche de recherche)
 ├── operations/           # Logique métier (un fichier par domaine)
-├── tools/                # Définitions des outils MCP
+│   ├── filter-utils.ts   # SSOT partagé filtre+tri (list + search)
+│   ├── create.ts         # Création atomique de sauvegardes (copyAtomic)
+│   ├── restore.ts        # Restauration atomique (temp + rename)
+│   ├── diff.ts           # Comparaison Myers diff
+│   └── ...
+├── search/               # Intégration ripgrep
+│   ├── ripgrep-executor.ts # Exécuteur de processus limité par sémaphore
+│   ├── ripgrep-args.ts    # Constructeur d'arguments
+│   └── ripgrep-types.ts   # Types de résultat
+├── tools/                # Définitions des outils MCP (flag readOnly)
+├── types/                # Interfaces TypeScript (BackupMetadata, paramètres)
+├── validation/           # Validation par regex
 └── utils/                # Stockage, persistance, hachage, configuration, journalisation
+    ├── concurrency.ts    # Sémaphore, parallelMap, limiteur de fréquence
+    ├── config.ts         # Analyse des variables d'environnement avec validation
+    ├── fs.ts             # Copie/écriture atomique, helpers de chemins
+    ├── myers-diff.ts     # Algorithme LCS diff (O(n*m) plafonné)
+    └── validate.ts       # Path traversal + restriction des racines
 ```
 
 ### Décisions clés
