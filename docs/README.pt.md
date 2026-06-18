@@ -48,23 +48,28 @@ npm run build
 
 ## Configuração
 
-Adiciona à configuração do teu cliente MCP:
+Adiciona à configuração do teu cliente MCP (sem bloco `env` — o servidor lê as variáveis de um ficheiro `.env` no seu próprio diretório via dotenv):
 
 ```json
 {
   "mcpServers": {
     "backup-pro": {
       "command": "node",
-      "args": ["/path/to/backup-pro/dist/index.js"],
-      "env": {
-        "BACKUP_ALLOWED_ROOTS": "/Users/you/projects:/home/you/code"
-      }
+      "args": ["/path/to/backup-pro/dist/index.js"]
     }
   }
 }
 ```
 
-### Variáveis de Ambiente
+### Variáveis de ambiente
+
+Copia `.env.example` para `.env` na raiz do projeto e ajusta os valores:
+
+```bash
+cp .env.example .env
+```
+
+O servidor carrega `.env` automaticamente ao iniciar. Não coloques variáveis de ambiente na configuração do cliente MCP — mantém-as em `.env` para que os valores predefinidos e a validação do servidor sejam aplicados.
 
 #### Segurança
 

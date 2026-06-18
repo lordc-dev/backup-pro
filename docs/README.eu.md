@@ -48,23 +48,28 @@ npm run build
 
 ## Konfigurazioa
 
-Gehitu zure MCP bezeroaren konfigurazioan:
+Gehitu zure MCP bezeroaren konfigurazioari (`env` blokerik gabe — zerbitzariak aldagaiak bere direktorioko `.env` fitxategi batetik irakurtzen ditu dotenv bidez):
 
 ```json
 {
   "mcpServers": {
     "backup-pro": {
       "command": "node",
-      "args": ["/path/to/backup-pro/dist/index.js"],
-      "env": {
-        "BACKUP_ALLOWED_ROOTS": "/Users/you/projects:/home/you/code"
-      }
+      "args": ["/path/to/backup-pro/dist/index.js"]
     }
   }
 }
 ```
 
 ### Ingurune-aldagaiak
+
+Kopiatu `.env.example` `.env` fitxategira proiektuaren erroan eta doitu balioak:
+
+```bash
+cp .env.example .env
+```
+
+Zerbitzariak `.env` automatikoki kargatzen du abiaraztean. Ez jarri ingurune-aldagaiak MCP bezeroaren konfigurazioan — mantendu itzazaite `.env` fitxategian zerbitzariaren balio lehenetsiak eta balidapena aplikatzeko.
 
 #### Segurtasuna
 
