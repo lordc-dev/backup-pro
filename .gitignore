@@ -7,3 +7,4 @@ coverage/
 .husky
 .scannerwork
 sonar-project.properties
+.opencode
