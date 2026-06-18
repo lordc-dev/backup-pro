@@ -1,6 +1,7 @@
 import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
-import { backupNotFoundError } from '../utils/validate.js';
-import { pathExists, readFile } from '../utils/fs.js';
+import { backupNotFoundError, validateMetadataPath } from '../utils/validate.js';
+import { pathExists, readFile, assertFileSize } from '../utils/fs.js';
+import { config } from '../utils/config.js';
 import { BackupStore } from '../utils/store.js';
 import { diffLines } from '../utils/myers-diff.js';
 
@@ -25,7 +26,7 @@ function formatDiffPart(part: { added?: boolean; removed?: boolean; value: strin
   const prefix = getDiffPrefix(part);
 
   for (const line of part.value.split('\n')) {
-    if (line) lines.push(`${prefix}${line}`);
+    lines.push(`${prefix}${line}`);
   }
 
   return lines;
@@ -40,8 +41,7 @@ function buildDiffHunks(
   let deletions = 0;
   const hunks: string[] = [];
 
-  hunks.push(`--- backup:${backupId}`);
-  hunks.push(`+++ ${compareLabel}`);
+  hunks.push(`--- backup:${backupId}`, `+++ ${compareLabel}`);
 
   for (const part of changes) {
     if (part.added) {
@@ -70,6 +70,8 @@ export async function diffBackup(
   if (!(await pathExists(backup.backupPath))) {
     throw new McpError(ErrorCode.InternalError, `Backup file missing: ${backup.backupPath}`);
   }
+  validateMetadataPath(backup.backupPath, `backup ${backupId}`);
+  await assertFileSize(backup.backupPath, config.maxDiffSize, 'diff');
 
   let compareContent: string;
   let compareLabel: string;
@@ -82,6 +84,7 @@ export async function diffBackup(
     if (!(await pathExists(compareBackup.backupPath))) {
       throw new McpError(ErrorCode.InternalError, `Comparison backup file missing: ${compareBackup.backupPath}`);
     }
+    validateMetadataPath(compareBackup.backupPath, `backup ${compareWithBackupId}`);
     compareContent = (await readFile(compareBackup.backupPath)).toString('utf-8');
     compareLabel = `backup:${compareWithBackupId}`;
   } else {

@@ -16,20 +16,3 @@ export interface ContentSearchResult {
   content: string;
   submatches: ContentSearchSubmatch[];
 }
-
-export interface GlobOptions {
-  cwd?: string;
-  ignore?: readonly string[];
-  onlyFiles?: boolean;
-  onlyDirectories?: boolean;
-  followSymlinks?: boolean;
-  deep?: number;
-  absolute?: boolean;
-  skipValidation?: boolean;
-}
-
-export interface DirectoryListOptions {
-  recursive?: boolean;
-  includeHidden?: boolean;
-  excludePatterns?: string[];
-}

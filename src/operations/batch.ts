@@ -2,6 +2,7 @@ import { CreateBackupParams, BatchBackupParams } from '../types/index.js';
 import { BackupStore } from '../utils/store.js';
 import { createBackup } from './create.js';
 import { parallelMap } from '../utils/concurrency.js';
+import { config } from '../utils/config.js';
 
 /** Result of a batch backup operation, listing successes and failures. */
 export interface BatchBackupResult {
@@ -32,7 +33,7 @@ export async function batchBackup(
       };
       return createBackup(createParams, backups);
     },
-    5
+    config.batchConcurrency
   );
 
   const successful: { filePath: string; backupId: string }[] = [];
@@ -63,28 +64,24 @@ export async function batchBackup(
  * Format batch backup result for display
  */
 export function formatBatchResult(result: BatchBackupResult): string {
-  const lines: string[] = [];
-
-  lines.push(`📦 Batch Backup Complete`);
-  lines.push('═'.repeat(50));
-  lines.push('');
-  lines.push(`📊 Results: ${result.successCount}/${result.totalFiles} successful`);
+  const lines: string[] = [
+    '📦 Batch Backup Complete',
+    '═'.repeat(50),
+    '',
+    `📊 Results: ${result.successCount}/${result.totalFiles} successful`,
+  ];
 
   if (result.successful.length > 0) {
-    lines.push('');
-    lines.push('✅ Backed up:');
+    lines.push('', '✅ Backed up:');
     for (const { filePath, backupId } of result.successful) {
-      lines.push(`   • ${filePath}`);
-      lines.push(`     ID: ${backupId}`);
+      lines.push(`   • ${filePath}`, `     ID: ${backupId}`);
     }
   }
 
   if (result.failed.length > 0) {
-    lines.push('');
-    lines.push('❌ Failed:');
+    lines.push('', '❌ Failed:');
     for (const { filePath, error } of result.failed) {
-      lines.push(`   • ${filePath}`);
-      lines.push(`     Error: ${error}`);
+      lines.push(`   • ${filePath}`, `     Error: ${error}`);
     }
   }
 

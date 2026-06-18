@@ -17,7 +17,7 @@ export interface RegexValidationOptions {
   pcre2?: boolean;
 }
 
-const MAX_PATTERN_LENGTH = 1000;
+export const MAX_PATTERN_LENGTH = 1000;
 const MAX_QUANTIFIER_NESTING = 3;
 const MAX_ALTERNATION_DEPTH = 20;
 
@@ -136,15 +136,15 @@ export function validateRegexPattern(
 
 function suggestBraceFixes(pattern: string): string[] {
   const suggestions: string[] = [];
-  if (pattern.includes('{') && !pattern.includes('\\{')) suggestions.push("Escape curly braces: use \\{ instead of {");
-  if (pattern.includes('}') && !pattern.includes('\\}')) suggestions.push("Escape curly braces: use \\} instead of }");
+  if (pattern.includes('{') && !pattern.includes(String.raw`\{`)) suggestions.push(String.raw`Escape curly braces: use \{ instead of {`);
+  if (pattern.includes('}') && !pattern.includes(String.raw`\}`)) suggestions.push(String.raw`Escape curly braces: use \} instead of }`);
   return suggestions;
 }
 
 function suggestBracketFixes(pattern: string): string[] {
   const suggestions: string[] = [];
-  if (pattern.includes('[') || pattern.includes(']')) suggestions.push('Escape square brackets: use \\[ and \\] for literal brackets');
-  if (pattern.includes('(') || pattern.includes(')')) suggestions.push('Escape parentheses: use \\( and \\) for literal parentheses');
+  if (pattern.includes('[') || pattern.includes(']')) suggestions.push(String.raw`Escape square brackets: use \[ and \] for literal brackets`);
+  if (pattern.includes('(') || pattern.includes(')')) suggestions.push(String.raw`Escape parentheses: use \( and \) for literal parentheses`);
   return suggestions;
 }
 
@@ -164,7 +164,7 @@ function suggestRegexFixes(pattern: string, errorMsg: string): string[] {
   }
 
   if (suggestions.length === 0) {
-    suggestions.push('Check regex syntax and escape special characters: . ^ $ * + ? { } [ ] \\ | ( )');
+    suggestions.push(String.raw`Check regex syntax and escape special characters: . ^ $ * + ? { } [ ] \ | ( )`);
   }
 
   return suggestions;
@@ -177,8 +177,8 @@ function detectRegexWarnings(pattern: string): string[] {
     warnings.push("Pattern matches almost everything - consider making it more specific");
   }
 
-  if (pattern.includes("\\\\") && !pattern.includes("\\\\\\\\")) {
-    warnings.push("Pattern contains double backslash (\\\\) - this matches a literal backslash");
+  if (pattern.includes(String.raw`\\`) && !pattern.includes(String.raw`\\\\`)) {
+    warnings.push(String.raw`Pattern contains double backslash (\\) - this matches a literal backslash`);
   }
 
   return warnings;
@@ -194,7 +194,7 @@ function formatRegexErrorWithHints(pattern: string, errors: string[], suggestion
     ...suggestions.map(s => `  - ${s}`),
     "",
     "Common regex special characters that need escaping:",
-    "  . ^ $ * + ? { } [ ] \\ | ( )",
+    String.raw`  . ^ $ * + ? { } [ ] \ | ( )`,
   ];
 
   return lines.join("\n");

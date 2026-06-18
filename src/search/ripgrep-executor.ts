@@ -11,17 +11,17 @@
  * - PCRE2 detection
  */
 
-import { spawn, execFile } from "child_process";
-import { promisify } from "util";
+import { spawn, execFile } from "node:child_process";
+import { promisify } from "node:util";
 
 import { log } from "../utils/logger.js";
 import { BaseError, ECODE } from "../errors/index.js";
+import { Semaphore } from "../utils/concurrency.js";
 
-const MAX_CONCURRENT_RG = process.env.MCP_MAX_CONCURRENT_RG ? parseInt(process.env.MCP_MAX_CONCURRENT_RG, 10) : 8;
-const RG_TIMEOUT_MS = process.env.MCP_RG_TIMEOUT_MS ? parseInt(process.env.MCP_RG_TIMEOUT_MS, 10) : 30_000;
+const MAX_CONCURRENT_RG = process.env.MCP_MAX_CONCURRENT_RG ? Number.parseInt(process.env.MCP_MAX_CONCURRENT_RG, 10) : 8;
+const RG_TIMEOUT_MS = process.env.MCP_RG_TIMEOUT_MS ? Number.parseInt(process.env.MCP_RG_TIMEOUT_MS, 10) : 30_000;
 
-let activeCount = 0;
-const pendingQueue: Array<() => void> = [];
+const rgSemaphore = new Semaphore(MAX_CONCURRENT_RG);
 
 const execFileAsync = promisify(execFile);
 
@@ -118,22 +118,11 @@ export function requiresPCRE2(pattern: string): boolean {
 }
 
 function acquireSlot(): Promise<void> {
-  if (activeCount < MAX_CONCURRENT_RG) {
-    activeCount++;
-    return Promise.resolve();
-  }
-  return new Promise<void>((resolve) => {
-    pendingQueue.push(resolve);
-  });
+  return rgSemaphore.acquire();
 }
 
 function releaseSlot(): void {
-  activeCount--;
-  const next = pendingQueue.shift();
-  if (next) {
-    activeCount++;
-    next();
-  }
+  rgSemaphore.release();
 }
 
 function buildFinalArgs(args: string[], pcre2: boolean): string[] {
@@ -250,8 +239,8 @@ export async function executeRipgrepWithLimit(
       }
     });
 
-    rg.stderr.on("data", () => {
-      // swallow stderr on limited runs
+    rg.stderr.on("data", (data: Buffer) => {
+      log.debug("ripgrep", `stderr: ${data.toString().trim()}`);
     });
 
     rg.on("close", () => {
@@ -260,9 +249,10 @@ export async function executeRipgrepWithLimit(
       resolve(output);
     });
 
-    rg.on("error", () => {
+    rg.on("error", (error: Error) => {
       clearTimeout(timer);
       releaseSlot();
+      log.warn("ripgrep", `spawn error: ${error.message}`);
       resolve(output);
     });
   });

@@ -100,5 +100,40 @@ export async function readJSON<T = unknown>(filePath: string): Promise<T> {
 
 export async function writeJSON(filePath: string, data: unknown, options?: { spaces?: number }): Promise<void> {
   const content = JSON.stringify(data, null, options?.spaces ?? 2);
-  await fsp.writeFile(filePath, content, 'utf-8');
+  await writeFileAtomic(filePath, content, 'utf-8');
+}
+
+/** Atomically writes `content` to `filePath` via a temp file + rename.
+ *  Guarantees readers never see a partially-written file. */
+export async function writeFileAtomic(filePath: string, content: string, encoding?: BufferEncoding): Promise<void> {
+  const tmpPath = `${filePath}.tmp-${process.pid}-${Date.now()}`;
+  try {
+    await fsp.writeFile(tmpPath, content, encoding);
+    await fsp.rename(tmpPath, filePath);
+  } catch (error) {
+    try { await fsp.rm(tmpPath, { force: true }); } catch { /* ignore cleanup error */ }
+    throw error;
+  }
+}
+
+/** Throws if the file at `filePath` exceeds `maxBytes`.
+ *  Use before full-file reads to prevent OOM on large backups. */
+export async function assertFileSize(filePath: string, maxBytes: number, label: string): Promise<void> {
+  const stats = await fsp.stat(filePath);
+  if (stats.size > maxBytes) {
+    throw new Error(`File too large for ${label}: ${stats.size} bytes exceeds limit of ${maxBytes} bytes`);
+  }
+}
+
+/** Atomically copies `src` to `dest` via a temp file + rename.
+ *  Guarantees readers never see a partially-written dest file. */
+export async function copyAtomic(src: string, dest: string, options?: { preserveTimestamps?: boolean }): Promise<void> {
+  const tmpPath = `${dest}.tmp-${process.pid}-${Date.now()}`;
+  try {
+    await copy(src, tmpPath, options);
+    await fsp.rename(tmpPath, dest);
+  } catch (error) {
+    try { await fsp.rm(tmpPath, { force: true }); } catch { /* ignore cleanup error */ }
+    throw error;
+  }
 }

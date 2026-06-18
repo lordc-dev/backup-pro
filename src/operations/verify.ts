@@ -1,5 +1,6 @@
-import { backupNotFoundError } from '../utils/validate.js';
-import { pathExists, readFile } from '../utils/fs.js';
+import { backupNotFoundError, validateMetadataPath } from '../utils/validate.js';
+import { pathExists, readFile, assertFileSize } from '../utils/fs.js';
+import { config } from '../utils/config.js';
 import { BackupStore } from '../utils/store.js';
 import { calculateFileHash } from '../utils/hashing.js';
 
@@ -45,6 +46,40 @@ function buildVerifyMessage(backupExists: boolean, backupIntact: boolean, origin
   return '✅ Backup intact | Original unchanged';
 }
 
+/** Computes backup hash with size guard and path validation. */
+async function verifyBackupHash(
+  backup: { backupPath: string; metadata: { fileHash?: string } },
+  backupId: string,
+  warnings: string[],
+): Promise<{ hash: string | undefined; intact: boolean }> {
+  try {
+    validateMetadataPath(backup.backupPath, `backup ${backupId}`);
+    await assertFileSize(backup.backupPath, config.maxHashSize, 'verify');
+  } catch (error) {
+    warnings.push(error instanceof Error ? error.message : String(error));
+  }
+  const result = await computeBackupHash(backup.backupPath, backup.metadata.fileHash);
+  if (result.error) warnings.push(result.error);
+  return { hash: result.hash, intact: result.intact };
+}
+
+/** Computes current (original) hash with size guard and path validation. */
+async function verifyCurrentHash(
+  backup: { metadata: { originalPath: string; fileHash?: string } },
+  backupId: string,
+  warnings: string[],
+): Promise<{ hash: string | undefined; changed: boolean }> {
+  try {
+    validateMetadataPath(backup.metadata.originalPath, `backup ${backupId} original`);
+    await assertFileSize(backup.metadata.originalPath, config.maxHashSize, 'verify');
+  } catch (error) {
+    warnings.push(error instanceof Error ? error.message : String(error));
+  }
+  const result = await computeCurrentHash(backup.metadata.originalPath, backup.metadata.fileHash);
+  if (result.error) warnings.push(result.error);
+  return { hash: result.hash, changed: result.changed };
+}
+
 export async function verifyBackup(backupId: string, backups: BackupStore): Promise<VerifyResult> {
   const backup = backups.get(backupId);
   if (!backup) throw backupNotFoundError(backupId);
@@ -53,23 +88,25 @@ export async function verifyBackup(backupId: string, backups: BackupStore): Prom
   const originalExists = await pathExists(backup.metadata.originalPath);
   const storedHash = backup.metadata.fileHash;
   const warnings: string[] = [];
+  if (!storedHash) {
+    warnings.push('No stored hash in metadata — integrity check skipped, change detection unreliable');
+  }
+
   let backupHash: string | undefined;
   let currentHash: string | undefined;
   let backupIntact = false;
   let originalChanged = false;
 
   if (backupExists) {
-    const result = await computeBackupHash(backup.backupPath, storedHash);
+    const result = await verifyBackupHash(backup, backupId, warnings);
     backupHash = result.hash;
     backupIntact = result.intact;
-    if (result.error) warnings.push(result.error);
   }
 
   if (originalExists) {
-    const result = await computeCurrentHash(backup.metadata.originalPath, storedHash);
+    const result = await verifyCurrentHash(backup, backupId, warnings);
     currentHash = result.hash;
     originalChanged = result.changed;
-    if (result.error) warnings.push(result.error);
   }
 
   const message = buildVerifyMessage(backupExists, backupIntact, originalExists, originalChanged);
@@ -125,9 +162,9 @@ export function formatVerifyResult(result: VerifyResult): string {
     `📁 Original: ${result.originalPath}`,
     `   Status: ${formatOriginalStatus(result.originalExists, result.originalChanged)}`,
     '',
+    formatBackupStatus(result.backupExists, result.backupIntact),
+    ...formatHashes(result),
+    ...formatWarnings(result.warnings || []),
   ];
-  lines.push(formatBackupStatus(result.backupExists, result.backupIntact));
-  lines.push(...formatHashes(result));
-  lines.push(...formatWarnings(result.warnings || []));
   return lines.join('\n');
 }

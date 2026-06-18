@@ -1,10 +1,14 @@
 import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
-import { backupNotFoundError } from '../utils/validate.js';
+import { backupNotFoundError, validateMetadataPath } from '../utils/validate.js';
 import { config } from '../utils/config.js';
-import { pathExists, stat, readFile } from '../utils/fs.js';
+import { pathExists, stat, readFile, assertFileSize } from '../utils/fs.js';
 import * as path from 'node:path';
 import { BackupStore } from '../utils/store.js';
 import { formatFileSize } from '../utils/formatting.js';
+
+/** Maximum file size for preview (50 MB) — prevents loading huge files into memory
+ *  even before the maxChars cap applies. */
+const MAX_PREVIEW_FILE_SIZE = 50 * 1024 * 1024;
 
 /** Result of previewing a backup's file content. */
 export interface PreviewResult {
@@ -39,6 +43,9 @@ export async function previewBackup(
   if (!(await pathExists(backup.backupPath))) {
     throw new McpError(ErrorCode.InternalError, `Backup file missing: ${backup.backupPath}`);
   }
+
+  validateMetadataPath(backup.backupPath, `backup ${backupId}`);
+  await assertFileSize(backup.backupPath, MAX_PREVIEW_FILE_SIZE, 'preview');
 
   const stats = await stat(backup.backupPath);
   const fullContent = (await readFile(backup.backupPath)).toString('utf-8');

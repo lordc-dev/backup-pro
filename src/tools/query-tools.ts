@@ -1,4 +1,4 @@
-import { requireString, optionalString, optionalStringArray, optionalNumber, optionalBoolean, validateDateString, validatePositiveNumber } from '../utils/validate.js';
+import { requireString, optionalString, optionalStringArray, optionalNumber, optionalBoolean, validateDateString, validatePositiveNumber, validateEnum, validateDateStringRecord } from '../utils/validate.js';
 import { ListBackupsParams, SearchBackupsParams } from '../types/index.js';
 import { listBackups, searchBackups, getBackup, getBackupStats, findDuplicates, verifyBackup, formatBackupDetails, formatVerifyResult, formatDuplicatesResult, searchBackupContent } from '../operations/index.js';
 import { formatBackupList, formatBackupStats } from '../utils/index.js';
@@ -28,8 +28,8 @@ export const listBackupsTool: ToolDefinition = {
       beforeDate: validateDateString(optionalString(args, 'beforeDate'), 'beforeDate'),
       searchTerm: optionalString(args, 'searchTerm'),
       limit: validatePositiveNumber(optionalNumber(args, 'limit'), 'limit'),
-      sortBy: optionalString(args, 'sortBy') as 'date' | 'size' | 'name' | undefined,
-      sortOrder: optionalString(args, 'sortOrder') as 'asc' | 'desc' | undefined,
+      sortBy: validateEnum(optionalString(args, 'sortBy'), ['date', 'size', 'name'] as const, 'sortBy') as ListBackupsParams['sortBy'],
+      sortOrder: validateEnum(optionalString(args, 'sortOrder'), ['asc', 'desc'] as const, 'sortOrder') as ListBackupsParams['sortOrder'],
     };
     return textResult(formatBackupList(listBackups(params, backups)));
   },
@@ -50,10 +50,10 @@ export const searchBackupsTool: ToolDefinition = {
   },
   handler: async (args, backups) => {
     const query = requireString(args, 'query');
-    const searchIn = optionalStringArray(args, 'searchIn') as ('description' | 'tags' | 'filename' | 'all')[] | undefined;
+    const searchIn = optionalStringArray(args, 'searchIn')?.map(v => validateEnum(v, ['description', 'tags', 'filename', 'all'] as const, 'searchIn')) as SearchBackupsParams['searchIn'];
     const tags = optionalStringArray(args, 'tags');
-    const dateRangeObj = typeof args === 'object' && args !== null ? (args as Record<string, unknown>).dateRange : undefined;
-    const params: SearchBackupsParams = { query, searchIn, tags, dateRange: dateRangeObj as SearchBackupsParams['dateRange'] };
+    const dateRange = validateDateStringRecord(args, 'dateRange');
+    const params: SearchBackupsParams = { query, searchIn, tags, dateRange };
     return textResult(formatBackupList(searchBackups(params, backups)));
   },
 };

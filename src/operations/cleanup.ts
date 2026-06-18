@@ -3,9 +3,10 @@ import { CleanupBackupsParams, CleanupResult, BackupInfo } from '../types/index.
 import { BackupStore } from '../utils/store.js';
 import { log } from '../utils/logger.js';
 import { pathExists, remove, stat } from '../utils/fs.js';
+import { validateMetadataPath } from '../utils/validate.js';
 
 function parseOlderThan(olderThan: string): Date {
-  const match = olderThan.match(/^(\d+)([dhm])$/);
+  const match = new RegExp(/^(\d+)([dhm])$/).exec(olderThan);
   if (!match) {
     throw new McpError(ErrorCode.InvalidParams, `Invalid olderThan format: '${olderThan}'. Use format like '7d', '24h', or '30m'.`);
   }
@@ -120,6 +121,7 @@ async function deleteBackupFiles(deletedBackups: BackupInfo[], backups: BackupSt
   for (const backup of deletedBackups) {
     backups.delete(backup.metadata.id);
     try {
+      validateMetadataPath(backup.backupPath, `backup ${backup.metadata.id}`);
       if (await pathExists(backup.backupPath)) {
         await remove(backup.backupPath);
       }
@@ -138,6 +140,10 @@ export async function cleanupBackups(
 
   if (keepLast === undefined && !olderThan && !filePath) {
     throw new McpError(ErrorCode.InvalidParams, 'At least one of keepLast, olderThan, or filePath must be specified');
+  }
+
+  if (olderThan) {
+    parseOlderThan(olderThan);
   }
 
   const keptBackups: BackupInfo[] = [];

@@ -1,4 +1,4 @@
-import { backupNotFoundError, toMcpError } from '../utils/validate.js';
+import { backupNotFoundError, toMcpError, validateMetadataPath } from '../utils/validate.js';
 import { pathExists, remove, stat } from '../utils/fs.js';
 import { BackupStore } from '../utils/store.js';
 import { BackupMetadata } from '../types/index.js';
@@ -25,6 +25,7 @@ export async function deleteBackup(
   let freedSpace = 0;
 
   if (await pathExists(backup.backupPath)) {
+    validateMetadataPath(backup.backupPath, `backup ${backupId}`);
     try {
       const stats = await stat(backup.backupPath);
       freedSpace = stats.size;

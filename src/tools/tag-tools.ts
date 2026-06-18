@@ -1,4 +1,4 @@
-import { requireString, optionalStringArray, backupNotFoundError } from '../utils/validate.js';
+import { requireString, requireStringArray, backupNotFoundError } from '../utils/validate.js';
 import { addTagsToBackup, removeTagsFromBackup, getTags } from '../operations/index.js';
 import { formatTagList } from '../utils/index.js';
 import { ToolDefinition, textResult } from './types.js';
@@ -26,7 +26,7 @@ export const addTagsTool: ToolDefinition = {
   persistAfter: true,
   handler: async (args, backups) => {
     const backupId = requireString(args, 'backupId');
-    const tags = optionalStringArray(args, 'tags') ?? [];
+    const tags = requireStringArray(args, 'tags');
     const success = addTagsToBackup(backupId, tags, backups);
     if (!success) throw backupNotFoundError(backupId);
     return textResult(`✅ Tags added to backup ${backupId}\n🏷️  ${tags.map(t => '#' + t).join(' ')}`);
@@ -47,7 +47,7 @@ export const removeTagsTool: ToolDefinition = {
   persistAfter: true,
   handler: async (args, backups) => {
     const backupId = requireString(args, 'backupId');
-    const tags = optionalStringArray(args, 'tags') ?? [];
+    const tags = requireStringArray(args, 'tags');
     const success = removeTagsFromBackup(backupId, tags, backups);
     if (!success) throw backupNotFoundError(backupId);
     return textResult(`✅ Tags removed from backup ${backupId}\n🏷️  Removed: ${tags.map(t => '#' + t).join(' ')}`);

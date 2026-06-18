@@ -8,6 +8,7 @@ import {
 import { rgArgs } from '../search/ripgrep-args.js';
 import type { ContentSearchResult } from '../search/ripgrep-types.js';
 import { config } from '../utils/config.js';
+import { MAX_PATTERN_LENGTH } from '../validation/regex-validation.js';
 
 export interface SearchContentParams {
   pattern: string;
@@ -15,8 +16,6 @@ export interface SearchContentParams {
   maxResults?: number;
   contextLines?: number;
 }
-
-const MAX_PATTERN_LENGTH = 1000;
 
 export interface BackupContentMatch {
   backupId: string;

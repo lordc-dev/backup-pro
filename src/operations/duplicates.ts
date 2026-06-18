@@ -4,6 +4,8 @@ import { BackupInfo, BackupMetadata } from '../types/index.js';
 import { calculateFileHash } from '../utils/hashing.js';
 import { formatFileSize } from '../utils/formatting.js';
 import { parallelMap } from '../utils/concurrency.js';
+import { validateMetadataPath } from '../utils/validate.js';
+import { log } from '../utils/logger.js';
 
 /** A group of backups with identical file content. */
 export interface DuplicateGroup {
@@ -27,11 +29,13 @@ async function computeBackupHash(backup: BackupInfo): Promise<{ hash: string; si
     return { hash: backup.metadata.fileHash, size: backup.metadata.size };
   }
   try {
+    validateMetadataPath(backup.backupPath, `backup ${backup.metadata.id}`);
     const content = await readFile(backup.backupPath);
     const hash = calculateFileHash(content);
     const stats = await stat(backup.backupPath);
     return { hash, size: stats.size };
-  } catch {
+  } catch (error) {
+    log.debug('duplicates', `Failed to hash backup`, { path: backup.backupPath, error: error instanceof Error ? error.message : String(error) });
     return null;
   }
 }
@@ -102,45 +106,46 @@ export async function findDuplicates(
 
 /** Formats duplicate analysis results into a human-readable string. */
 export function formatDuplicatesResult(result: FindDuplicatesResult): string {
-  const lines: string[] = [];
-
-  lines.push(`🔍 Duplicate Analysis`);
-  lines.push('═'.repeat(50));
-  lines.push('');
-
   if (result.duplicateGroups.length === 0) {
-    lines.push('✅ No duplicate backups found!');
-    lines.push(`📊 ${result.uniqueBackups} unique backups`);
-    return lines.join('\n');
+    return [
+      '🔍 Duplicate Analysis',
+      '═'.repeat(50),
+      '',
+      '✅ No duplicate backups found!',
+      `📊 ${result.uniqueBackups} unique backups`,
+    ].join('\n');
   }
 
-  lines.push(`📊 Summary:`);
-  lines.push(`   • Unique backups: ${result.uniqueBackups}`);
-  lines.push(`   • Duplicate backups: ${result.totalDuplicates}`);
-  lines.push(`   • Wasted space: ${formatFileSize(result.totalWastedSpace)}`);
-  lines.push('');
-  lines.push(`🔄 Duplicate Groups (${result.duplicateGroups.length}):`);
-  lines.push('─'.repeat(50));
+  const lines: string[] = [
+    '🔍 Duplicate Analysis',
+    '═'.repeat(50),
+    '',
+    '📊 Summary:',
+    `   • Unique backups: ${result.uniqueBackups}`,
+    `   • Duplicate backups: ${result.totalDuplicates}`,
+    `   • Wasted space: ${formatFileSize(result.totalWastedSpace)}`,
+    '',
+    `🔄 Duplicate Groups (${result.duplicateGroups.length}):`,
+    '─'.repeat(50),
+  ];
 
   for (const group of result.duplicateGroups.slice(0, 10)) {
-    lines.push('');
-    lines.push(`Hash: ${group.hash.substring(0, 8)}...`);
-    lines.push(`Size: ${formatFileSize(group.size)} × ${group.count} copies = ${formatFileSize(group.wastedSpace)} wasted`);
-    lines.push('Files:');
-    
-    for (const backup of group.backups) {
-      const date = new Date(backup.timestamp).toLocaleDateString();
-      lines.push(`   • [${backup.id}] ${backup.originalPath} (${date})`);
-    }
+    lines.push(
+      '',
+      `Hash: ${group.hash.substring(0, 8)}...`,
+      `Size: ${formatFileSize(group.size)} × ${group.count} copies = ${formatFileSize(group.wastedSpace)} wasted`,
+      'Files:',
+      ...group.backups.map(backup =>
+        `   • [${backup.id}] ${backup.originalPath} (${new Date(backup.timestamp).toLocaleDateString()})`,
+      ),
+    );
   }
 
   if (result.duplicateGroups.length > 10) {
-    lines.push('');
-    lines.push(`... and ${result.duplicateGroups.length - 10} more groups`);
+    lines.push('', `... and ${result.duplicateGroups.length - 10} more groups`);
   }
 
-  lines.push('');
-  lines.push('💡 Tip: Use delete_backup to remove unwanted duplicates');
+  lines.push('', '💡 Tip: Use delete_backup to remove unwanted duplicates');
 
   return lines.join('\n');
 }

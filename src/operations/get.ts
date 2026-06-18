@@ -1,5 +1,6 @@
-import { backupNotFoundError } from '../utils/validate.js';
-import { pathExists, stat, readFile } from '../utils/fs.js';
+import { backupNotFoundError, validateMetadataPath } from '../utils/validate.js';
+import { pathExists, stat, readFile, assertFileSize } from '../utils/fs.js';
+import { config } from '../utils/config.js';
 import { BackupStore } from '../utils/store.js';
 import { BackupMetadata, BackupInfo } from '../types/index.js';
 import { calculateFileHash } from '../utils/hashing.js';
@@ -25,6 +26,7 @@ async function computeCurrentState(backup: BackupInfo): Promise<{ currentSize: n
 
   if (originalExists && backupExists && backup.metadata.fileHash) {
     try {
+      await assertFileSize(backup.metadata.originalPath, config.maxHashSize, 'get_backup');
       const currentContent = await readFile(backup.metadata.originalPath);
       const currentHash = calculateFileHash(currentContent);
       hashMatch = currentHash === backup.metadata.fileHash;
@@ -38,8 +40,7 @@ async function computeCurrentState(backup: BackupInfo): Promise<{ currentSize: n
   return { currentSize, hashMatch, warnings };
 }
 
-async function computeActualSize(backupPath: string, metadataSize: number | undefined): Promise<{ actualSize: number; warnings: string[] }> {
-  let actualSize = metadataSize ?? 0;
+async function computeActualSize(backupPath: string, actualSize = 0): Promise<{ actualSize: number; warnings: string[] }> {
   const warnings: string[] = [];
   if (await pathExists(backupPath)) {
     try {
@@ -65,6 +66,13 @@ export async function getBackup(
   const backupExists = await pathExists(backup.backupPath);
   const originalExists = await pathExists(backup.metadata.originalPath);
 
+  if (backupExists) {
+    validateMetadataPath(backup.backupPath, `backup ${backupId}`);
+  }
+  if (originalExists) {
+    validateMetadataPath(backup.metadata.originalPath, `backup ${backupId} original`);
+  }
+
   const { currentSize, hashMatch, warnings: stateWarnings } = await computeCurrentState(backup);
   const { actualSize, warnings: sizeWarnings } = await computeActualSize(backup.backupPath, backup.metadata.size);
   const warnings = [...stateWarnings, ...sizeWarnings];
@@ -83,14 +91,15 @@ export async function getBackup(
 }
 
 function formatDetailsHeader(details: BackupDetails): string[] {
-  const lines: string[] = [];
-  lines.push(`📋 Backup Details: ${details.id}`);
-  lines.push('═'.repeat(50));
-  lines.push('');
-  lines.push(`📁 Original File: ${details.originalPath}`);
-  lines.push(`📍 Backup Location: ${details.backupPath}`);
-  lines.push(`📅 Created: ${new Date(details.timestamp).toLocaleString()}`);
-  lines.push(`💾 Size: ${details.sizeFormatted}`);
+  const lines: string[] = [
+    `📋 Backup Details: ${details.id}`,
+    '═'.repeat(50),
+    '',
+    `📁 Original File: ${details.originalPath}`,
+    `📍 Backup Location: ${details.backupPath}`,
+    `📅 Created: ${new Date(details.timestamp).toLocaleString()}`,
+    `💾 Size: ${details.sizeFormatted}`,
+  ];
 
   if (details.description) {
     lines.push(`📝 Description: ${details.description}`);
@@ -105,11 +114,12 @@ function formatDetailsHeader(details: BackupDetails): string[] {
 }
 
 function formatDetailsStatus(details: BackupDetails): string[] {
-  const lines: string[] = [];
-  lines.push('');
-  lines.push('Status:');
-  lines.push(`  • Backup file: ${details.backupExists ? '✅ exists' : '❌ missing'}`);
-  lines.push(`  • Original file: ${details.originalExists ? '✅ exists' : '⚠️  deleted/moved'}`);
+  const lines: string[] = [
+    '',
+    'Status:',
+    `  • Backup file: ${details.backupExists ? '✅ exists' : '❌ missing'}`,
+    `  • Original file: ${details.originalExists ? '✅ exists' : '⚠️  deleted/moved'}`,
+  ];
 
   if (details.hashMatch !== undefined) {
     lines.push(`  • Content: ${details.hashMatch ? '✅ unchanged' : '⚠️  modified since backup'}`);
@@ -123,29 +133,18 @@ function formatDetailsStatus(details: BackupDetails): string[] {
 }
 
 function formatDetailsHashes(details: BackupDetails): string[] {
-  const lines: string[] = [];
-
-  if (details.fileHash) {
-    lines.push(`  • Hash: ${details.fileHash}`);
-  }
-
-  return lines;
+  return details.fileHash ? [`  • Hash: ${details.fileHash}`] : [];
 }
 
 function formatDetailsRelated(details: BackupDetails): string[] {
   const lines: string[] = [];
 
   if (details.relatedFiles && details.relatedFiles.length > 0) {
-    lines.push('');
-    lines.push('🔗 Related Files:');
-    for (const file of details.relatedFiles) {
-      lines.push(`   • ${file}`);
-    }
+    lines.push('', '🔗 Related Files:', ...details.relatedFiles.map(file => `   • ${file}`));
   }
 
   if (details.projectContext) {
-    lines.push('');
-    lines.push(`📂 Project Context: ${details.projectContext}`);
+    lines.push('', `📂 Project Context: ${details.projectContext}`);
   }
 
   if (details.author) {
@@ -153,11 +152,7 @@ function formatDetailsRelated(details: BackupDetails): string[] {
   }
 
   if (details.warnings && details.warnings.length > 0) {
-    lines.push('');
-    lines.push('⚠️  Warnings:');
-    for (const w of details.warnings) {
-      lines.push(`   • ${w}`);
-    }
+    lines.push('', '⚠️  Warnings:', ...details.warnings.map(w => `   • ${w}`));
   }
 
   return lines;

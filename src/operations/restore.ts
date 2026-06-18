@@ -1,10 +1,14 @@
 import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
-import { copy, pathExists, remove, mkdirp } from '../utils/fs.js';
+import { copyAtomic, pathExists, mkdirp } from '../utils/fs.js';
 import * as path from 'node:path';
 import { RestoreBackupParams } from '../types/index.js';
-import { validateAndResolveFilePath, backupNotFoundError, toMcpError } from '../utils/validate.js';
+import {
+  validateAndResolveFilePath,
+  validateMetadataPath,
+  backupNotFoundError,
+  toMcpError,
+} from '../utils/validate.js';
 import { BackupStore } from '../utils/store.js';
-import { log } from '../utils/logger.js';
 
 /** Restores a file from a backup, optionally to a different target path. */
 export async function restoreBackup(
@@ -24,14 +28,15 @@ export async function restoreBackup(
 
   const { metadata: { originalPath }, backupPath } = backupInfo;
 
-  const resolvedOriginal = await validateAndResolveFilePath(originalPath);
-
   if (!(await pathExists(backupPath))) {
     throw new McpError(
       ErrorCode.InternalError,
       `Backup file missing: ${backupPath}`
     );
   }
+  validateMetadataPath(backupPath, `backup ${backupId}`);
+
+  const resolvedOriginal = await validateAndResolveFilePath(originalPath);
 
   const restoreTo = resolvedTargetPath || resolvedOriginal;
 
@@ -41,24 +46,14 @@ export async function restoreBackup(
       await mkdirp(dir);
     }
 
-    if (resolvedTargetPath && (await pathExists(resolvedTargetPath))) {
-      await remove(resolvedTargetPath);
-    }
+    // Atomic copy: writes to a temp file then renames into place.
+    // No prior remove needed — rename overwrites the destination atomically.
+    await copyAtomic(backupPath, restoreTo, { preserveTimestamps: true });
 
-    await copy(backupPath, restoreTo, { preserveTimestamps: true });
-
-    if (!resolvedTargetPath && (await pathExists(resolvedOriginal))) {
-      try {
-        await remove(resolvedOriginal);
-      } catch (error) {
-        log.debug('restore', 'Failed to remove original file after restore', { path: resolvedOriginal, error: error instanceof Error ? error.message : String(error) });
-      }
-    }
-
-    return { 
-      originalPath, 
+    return {
+      originalPath,
       restoredTo: restoreTo,
-      success: true 
+      success: true,
     };
   } catch (error) {
     throw toMcpError(error, 'Failed to restore backup');

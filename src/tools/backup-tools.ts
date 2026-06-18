@@ -1,5 +1,4 @@
-import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
-import { requireString, optionalString, optionalStringArray, optionalNumber, optionalBoolean, validateFilePath } from '../utils/validate.js';
+import { requireString, requireStringArray, optionalString, optionalStringArray, optionalNumber, optionalBoolean, validateFilePath } from '../utils/validate.js';
 import { config } from '../utils/config.js';
 import { CreateBackupParams, RestoreBackupParams, CleanupBackupsParams, BatchBackupParams } from '../types/index.js';
 import { createBackup, restoreBackup, deleteBackup, cleanupBackups, batchBackup, previewBackup, diffBackup, formatBatchResult } from '../operations/index.js';
@@ -122,13 +121,10 @@ export const batchBackupTool: ToolDefinition = {
   },
   persistAfter: true,
   handler: async (args, backups) => {
-    const filePaths = (args as Record<string, unknown>)['filePaths'];
-    if (!Array.isArray(filePaths) || filePaths.length === 0) {
-      throw new McpError(ErrorCode.InvalidParams, 'Missing or invalid required parameter: filePaths');
-    }
-    for (const fp of filePaths as string[]) validateFilePath(fp);
+    const filePaths = requireStringArray(args, 'filePaths');
+    for (const fp of filePaths) validateFilePath(fp);
     const params: BatchBackupParams = { 
-      filePaths: filePaths as string[], 
+      filePaths, 
       description: optionalString(args, 'description'), 
       tags: optionalStringArray(args, 'tags'), 
       projectContext: optionalString(args, 'projectContext'),

@@ -28,7 +28,7 @@ async function getIntegrityKey(): Promise<string> {
 
 /** Computes an HMAC-SHA256 of the backup entries for integrity verification. */
 function computeMetadataHmac(entries: Record<string, BackupInfo>, key: string): string {
-  const data = JSON.stringify(entries, Object.keys(entries).sort());
+  const data = JSON.stringify(entries, Object.keys(entries).sort((a, b) => a.localeCompare(b)));
   return createHmac('sha256', key).update(data).digest('hex');
 }
 
@@ -81,22 +81,23 @@ export async function loadBackupMetadata(): Promise<{ backups: Map<string, Backu
 }
 
 export async function saveBackupMetadata(backups: Map<string, BackupInfo>): Promise<void> {
-  try {
-    const dir = path.dirname(getMetadataFile());
-    await ensureDir(dir);
-    
-    const entries = Object.fromEntries(backups);
-    const key = await getIntegrityKey();
-    const integrity = computeMetadataHmac(entries, key);
+  const dir = path.dirname(getMetadataFile());
+  await ensureDir(dir);
 
-    const data: StoredMetadata = {
-      schemaVersion: CURRENT_SCHEMA_VERSION,
-      backups: entries,
-      integrity,
-    };
+  const entries = Object.fromEntries(backups);
+  const key = await getIntegrityKey();
+  const integrity = computeMetadataHmac(entries, key);
+
+  const data: StoredMetadata = {
+    schemaVersion: CURRENT_SCHEMA_VERSION,
+    backups: entries,
+    integrity,
+  };
+  try {
     await writeJSON(getMetadataFile(), data, { spaces: 2 });
   } catch (error) {
     log.error('persistence', 'Error saving backup metadata', { error: error instanceof Error ? error.message : String(error) });
+    throw error;
   }
 }
 
@@ -106,10 +107,10 @@ export function getAllTags(backups: Map<string, BackupInfo>): string[] {
   for (const backup of backups.values()) {
     if (backup.metadata.tags) {
       backup.metadata.tags.forEach(tag => tagsSet.add(tag));
-    }
+      }
   }
   
-  return Array.from(tagsSet).sort();
+  return Array.from(tagsSet).sort((a, b) => a.localeCompare(b));
 }
 
 export function filterByTags(
@@ -123,7 +124,7 @@ export function filterByTags(
   const filtered = new Map<string, BackupInfo>();
   
   for (const [id, backup] of backups.entries()) {
-    if (backup.metadata.tags && backup.metadata.tags.some(tag => tags.includes(tag))) {
+    if (backup.metadata.tags?.some(tag => tags.includes(tag))) {
       filtered.set(id, backup);
     }
   }
@@ -163,7 +164,7 @@ function matchesSearchTerm(backup: BackupInfo, term: string, searchIn: string[])
   }
 
   if (searchIn.includes('all') || searchIn.includes('tags')) {
-    if (backup.metadata.tags && backup.metadata.tags.some(tag => typeof tag === 'string' && tag.toLowerCase().includes(term))) {
+    if (backup.metadata.tags?.some(tag => typeof tag === 'string' && tag.toLowerCase().includes(term))) {
       return true;
     }
   }
