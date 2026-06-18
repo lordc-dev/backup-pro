@@ -66,16 +66,11 @@ function shouldDeleteBackup(
   backup: BackupInfo,
   index: number,
   keepLast: number | undefined,
-  olderThan: string | undefined
+  cutoffDate: Date | undefined
 ): boolean {
   if (keepLast !== undefined && index >= keepLast) return true;
-  if (olderThan && shouldDeleteByAge(backup, olderThan)) return true;
+  if (cutoffDate && new Date(backup.metadata.timestamp) < cutoffDate) return true;
   return false;
-}
-
-function shouldDeleteByAge(backup: BackupInfo, olderThan: string): boolean {
-  const cutoffDate = parseOlderThan(olderThan);
-  return new Date(backup.metadata.timestamp) < cutoffDate;
 }
 
 async function computeFreedSpace(backup: BackupInfo): Promise<number> {
@@ -92,7 +87,7 @@ async function computeFreedSpace(backup: BackupInfo): Promise<number> {
 async function classifyBackups(
   groupedByFile: Map<string, BackupInfo[]>,
   keepLast: number | undefined,
-  olderThan: string | undefined,
+  cutoffDate: Date | undefined,
   keptBackups: BackupInfo[]
 ): Promise<{ deletedBackups: BackupInfo[]; freedSpace: number }> {
   const deletedBackups: BackupInfo[] = [];
@@ -105,7 +100,7 @@ async function classifyBackups(
 
     for (let i = 0; i < fileBackups.length; i++) {
       const backup = fileBackups[i];
-      if (shouldDeleteBackup(backup, i, keepLast, olderThan)) {
+      if (shouldDeleteBackup(backup, i, keepLast, cutoffDate)) {
         deletedBackups.push(backup);
         freedSpace += await computeFreedSpace(backup);
       } else {
@@ -146,9 +141,11 @@ export async function cleanupBackups(
     parseOlderThan(olderThan);
   }
 
+  const cutoffDate = olderThan ? parseOlderThan(olderThan) : undefined;
+
   const keptBackups: BackupInfo[] = [];
   const groupedByFile = groupBackupsByFile(backups, filePath, excludeTags, keptBackups);
-  const { deletedBackups, freedSpace } = await classifyBackups(groupedByFile, keepLast, olderThan, keptBackups);
+  const { deletedBackups, freedSpace } = await classifyBackups(groupedByFile, keepLast, cutoffDate, keptBackups);
 
   if (!dryRun) {
     await deleteBackupFiles(deletedBackups, backups);

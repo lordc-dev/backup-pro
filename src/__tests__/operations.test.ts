@@ -218,6 +218,6 @@ describe('duplicates', () => {
     await createBackup({ filePath: file2 }, backups);
     
     const result = await findDuplicates(backups);
-    expect(result.uniqueBackups).toBeGreaterThanOrEqual(1);
+    expect(result.uniqueHashes).toBeGreaterThanOrEqual(1);
   });
 });

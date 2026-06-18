@@ -23,8 +23,9 @@ export async function deleteBackup(
   }
 
   let freedSpace = 0;
+  const backupExists = await pathExists(backup.backupPath);
 
-  if (await pathExists(backup.backupPath)) {
+  if (backupExists) {
     validateMetadataPath(backup.backupPath, `backup ${backupId}`);
     try {
       const stats = await stat(backup.backupPath);
@@ -37,7 +38,7 @@ export async function deleteBackup(
   const metadata = { ...backup.metadata };
 
   try {
-    if (await pathExists(backup.backupPath)) {
+    if (backupExists) {
       await remove(backup.backupPath);
     }
   } catch (error) {
