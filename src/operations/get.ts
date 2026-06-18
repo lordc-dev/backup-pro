@@ -26,12 +26,18 @@ async function computeCurrentState(backup: BackupInfo): Promise<{ currentSize: n
 
   if (originalExists && backupExists && backup.metadata.fileHash) {
     try {
+      const currentStats = await stat(backup.metadata.originalPath);
+      currentSize = currentStats.size;
+      const originalMtime = currentStats.mtime.getTime();
+      const backupTime = new Date(backup.metadata.timestamp).getTime();
+      if (originalMtime <= backupTime) {
+        hashMatch = true;
+        return { currentSize, hashMatch, warnings };
+      }
       await assertFileSize(backup.metadata.originalPath, config.maxHashSize, 'get_backup');
       const currentContent = await readFile(backup.metadata.originalPath);
       const currentHash = calculateFileHash(currentContent);
       hashMatch = currentHash === backup.metadata.fileHash;
-      const currentStats = await stat(backup.metadata.originalPath);
-      currentSize = currentStats.size;
     } catch (error) {
       warnings.push(`Failed to compare hashes: ${error instanceof Error ? error.message : String(error)}`);
     }

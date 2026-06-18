@@ -7,6 +7,7 @@ import { ToolDefinition, textResult } from './types.js';
 export const listBackupsTool: ToolDefinition = {
   name: "list_backups",
   description: "List backups with advanced filtering",
+  readOnly: true,
   inputSchema: {
     type: "object",
     properties: {
@@ -38,6 +39,7 @@ export const listBackupsTool: ToolDefinition = {
 export const searchBackupsTool: ToolDefinition = {
   name: "search_backups",
   description: "Search backups by content",
+  readOnly: true,
   inputSchema: {
     type: "object",
     properties: {
@@ -61,6 +63,7 @@ export const searchBackupsTool: ToolDefinition = {
 export const getBackupTool: ToolDefinition = {
   name: "get_backup",
   description: "Get detailed information about a specific backup including status and integrity",
+  readOnly: true,
   inputSchema: {
     type: "object",
     properties: {
@@ -78,6 +81,7 @@ export const getBackupTool: ToolDefinition = {
 export const getBackupStatsTool: ToolDefinition = {
   name: "get_backup_stats",
   description: "Get backup statistics",
+  readOnly: true,
   inputSchema: { type: "object", properties: {} },
   handler: async (_args, backups) => {
     const { stats, warnings } = await getBackupStats(backups);
@@ -92,6 +96,7 @@ export const getBackupStatsTool: ToolDefinition = {
 export const verifyBackupTool: ToolDefinition = {
   name: "verify_backup",
   description: "Verify backup integrity by checking file hash. Detects corruption or modifications.",
+  readOnly: true,
   inputSchema: {
     type: "object",
     properties: {
@@ -109,6 +114,7 @@ export const verifyBackupTool: ToolDefinition = {
 export const findDuplicatesTool: ToolDefinition = {
   name: "find_duplicates",
   description: "Find backups with identical content to identify wasted space",
+  readOnly: true,
   inputSchema: { type: "object", properties: {} },
   handler: async (_args, backups) => {
     const result = await findDuplicates(backups);
@@ -119,6 +125,7 @@ export const findDuplicatesTool: ToolDefinition = {
 export const searchBackupContentTool: ToolDefinition = {
   name: "search_backup_content",
   description: "Search inside backup file contents using ripgrep. Find backups containing specific code or text.",
+  readOnly: true,
   inputSchema: {
     type: "object",
     properties: {

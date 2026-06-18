@@ -196,6 +196,7 @@ function convertChangesToDiffLines(changes: Change[]): DiffLine[] {
  *  If either text exceeds MAX_DIFF_LINES, returns a summary instead. */
 export function diffLines(oldText: string, newText: string): DiffLine[] {
   const MAX_DIFF_LINES = 50000;
+  const MAX_DIFF_PRODUCT = 10_000_000;
 
   const oldLines = oldText.split('\n');
   const newLines = newText.split('\n');
@@ -213,6 +214,10 @@ export function diffLines(oldText: string, newText: string): DiffLine[] {
   if (n === 0 && m === 0) return [];
   if (n === 0) return [{ value: newLines.join('\n') + '\n', added: true, count: m }];
   if (m === 0) return [{ value: oldLines.join('\n') + '\n', removed: true, count: n }];
+
+  if (n * m > MAX_DIFF_PRODUCT) {
+    return [{ value: `Diff too large: ${n} × ${m} line pairs exceeds product limit ${MAX_DIFF_PRODUCT}. Use preview_backup for partial view.`, count: 1 }];
+  }
 
   const lcs = longestCommonSubsequence(oldLines, newLines);
   const changes = computeChangesFromLCS(oldLines, newLines, lcs);

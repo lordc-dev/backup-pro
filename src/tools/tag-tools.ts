@@ -6,6 +6,7 @@ import { ToolDefinition, textResult } from './types.js';
 export const listTagsTool: ToolDefinition = {
   name: "list_tags",
   description: "List all available tags",
+  readOnly: true,
   inputSchema: { type: "object", properties: {} },
   handler: async (_args, backups) => {
     return textResult(formatTagList(getTags(backups)));

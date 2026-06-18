@@ -137,6 +137,7 @@ export const batchBackupTool: ToolDefinition = {
 export const previewBackupTool: ToolDefinition = {
   name: "preview_backup",
   description: "Preview backup content without restoring. View file contents safely.",
+  readOnly: true,
   inputSchema: {
     type: "object",
     properties: {
@@ -167,6 +168,7 @@ export const previewBackupTool: ToolDefinition = {
 export const diffBackupTool: ToolDefinition = {
   name: "diff_backup",
   description: "Compare a backup with the current file or another backup. Shows what changed.",
+  readOnly: true,
   inputSchema: {
     type: "object",
     properties: {

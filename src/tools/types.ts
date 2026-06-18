@@ -8,6 +8,7 @@ export interface ToolDefinition {
   inputSchema: Record<string, unknown>;
   handler: ToolHandler;
   persistAfter?: boolean;
+  readOnly?: boolean;
 }
 
 export function textResult(text: string): { type: "text"; text: string } {

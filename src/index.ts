@@ -70,7 +70,9 @@ export class BackupServer {
       }
 
       try {
-        await backupRateLimiter.acquire();
+        if (!tool.readOnly) {
+          await backupRateLimiter.acquire();
+        }
         const result = await tool.handler(args, this.backups);
         if (tool.persistAfter) {
           await this.backups.save();
