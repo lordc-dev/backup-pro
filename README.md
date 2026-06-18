@@ -214,9 +214,11 @@ Backups are stored in `BACKUP_DIR` with:
 - **Hash verification** — SHA-256 integrity check on every backup and restore
 - **All paths validated before access** — no symlink tricks, no escaping roots
 
-## Companion Project
+## Companion Projects
 
-[**Filesystem Pro**](https://github.com/lordc-dev/filesystem-pro) — give AI real developer access to your codebase. Ripgrep search, tree-sitter code understanding in 17 languages, AST-based surgical edits, and a full undo stack. Backup Pro versions your files; Filesystem Pro gives AI the tools to edit them safely.
+[**Filesystem Pro**](https://github.com/lordc-dev/filesystem-pro) — Give AI assistants safe access to read, search, edit, and organize your code files — just like a developer would. Ripgrep search, tree-sitter code understanding in 17 languages, AST-based surgical edits, and a full undo stack. Backup Pro versions your files; Filesystem Pro gives AI the tools to edit them safely.
+
+[**Security Tools Pro**](https://github.com/lordc-dev/security-tools-pro) — 59 tools. One server. Full security coverage. Vulnerability intel, SAST, recon, secret scanning, dependency auditing, exploit research, and reporting — all wired together so AI can triage, scan, and report without context-switching across 10 CLI tools and 5 browser tabs.
 
 ## License
 

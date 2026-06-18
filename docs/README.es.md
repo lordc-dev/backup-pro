@@ -214,9 +214,11 @@ Los respaldos se almacenan en `BACKUP_DIR` con:
 - **Verificación hash** — comprobación de integridad SHA-256 en cada respaldo y restauración
 - **Todas las rutas validadas antes del acceso** — sin trucos de symlinks, sin escapar de las raíces
 
-## Proyecto complementario
+## Proyectos complementarios
 
-[**Filesystem Pro**](https://github.com/lordc-dev/filesystem-pro) — da a la IA acceso real de desarrollador a tu código. Búsqueda ripgrep, comprensión de código con tree-sitter en 17 lenguajes, ediciones quirúrgicas basadas en AST y una pila de deshacer completa. Backup Pro versiona tus archivos; Filesystem Pro da a la IA las herramientas para editarlos con seguridad.
+[**Filesystem Pro**](https://github.com/lordc-dev/filesystem-pro) — Da a los asistentes de IA acceso seguro para leer, buscar, editar y organizar tus archivos de código — igual que un desarrollador. Búsqueda ripgrep, comprensión de código con tree-sitter en 17 lenguajes, ediciones quirúrgicas basadas en AST y una pila de deshacer completa. Backup Pro versiona tus archivos; Filesystem Pro da a la IA las herramientas para editarlos con seguridad.
+
+[**Security Tools Pro**](https://github.com/lordc-dev/security-tools-pro) — 59 herramientas. Un servidor. Cobertura de seguridad completa. Inteligencia de vulnerabilidades, SAST, reconocimiento, escaneo de secretos, auditoría de dependencias, investigación de exploits y reportes — todo integrado para que la IA pueda triar, escanear y reportar sin cambiar de contexto entre 10 herramientas CLI y 5 pestañas del navegador.
 
 ## Licencia
 

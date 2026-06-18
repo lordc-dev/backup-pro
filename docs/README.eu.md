@@ -214,9 +214,11 @@ Babeskopiak `BACKUP_DIR`-en gordetzen dira hauekin:
 - **Hash egiaztapena** — SHA-256 osotasun-egiaztapena babeskopia eta leheneratze bakoitzean
 - **Bide guztiak balidatuta sarbide aurretik** — symlink trukirik ez, erro-etabiderik gabe
 
-## Proiektu laguna
+## Proiektu lagunak
 
-[**Filesystem Pro**](https://github.com/lordc-dev/filesystem-pro) — AI-ri zure kodera garatzaile-arauzko sarbide erreala ematen dio. Ripgrep bilaketa, tree-sitter kode-ulertzea 17 hizkuntzatan, AST-n oinarritutako edizio kirurgikoak eta desegite-pila osoa. Backup Pro-k zure fitxategiak bertsionatzen ditu; Filesystem Pro-k AI-ri fitxategiak seguru editatzeko tresnak ematen dizkio.
+[**Filesystem Pro**](https://github.com/lordc-dev/filesystem-pro) — AI laguntzaileei zure kode-fitxategiak irakurtzeko, bilatzeko, editatzeko eta antolatzeko sarbide segurua ematen die — garatzaile batek bezala. Ripgrep bilaketa, tree-sitter kode-ulertzea 17 hizkuntzatan, AST-n oinarritutako edizio kirurgikoak eta desegite-pila osoa. Backup Pro-k zure fitxategiak bertsionatzen ditu; Filesystem Pro-k AI-ri fitxategiak seguru editatzeko tresnak ematen dizkio.
+
+[**Security Tools Pro**](https://github.com/lordc-dev/security-tools-pro) — 59 tresna. Zerbitzari bat. Segurtasun-estaldura osoa. Zaurgarritasun-inteligentzia, SAST, ezagutza, sekretuen eskaneatzea, dependentzien auditoretza, exploit-ikerketa eta txostenak — dena integratuta IA-k triatu, eskaneatu eta txostentzeko 10 CLI tresna eta 5 arakatzaile-fitxen arteko testuinguru-aldaketarik gabe.
 
 ## Lizentzia
 
