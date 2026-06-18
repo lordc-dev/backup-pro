@@ -1,20 +1,11 @@
 /**
  * Custom Error Types with Error Chaining
  *
- * Typed errors for each domain. All extend BaseError which preserves
- * cause chain and provides structured context for logging and debugging.
+ * Typed errors for the search/ripgrep layer. All extend BaseError which
+ * preserves cause chain and provides structured context for logging and debugging.
  */
 
 export const ECODE = {
-  // Path (1xxx)
-  PATH_INVALID: 1001,
-  PATH_NOT_FOUND: 1003,
-
-  // File (2xxx)
-  FILE_NOT_FOUND: 2001,
-  FILE_READ_ERROR: 2002,
-  FILE_WRITE_ERROR: 2003,
-
   // Search (10xxx)
   SEARCH_PATTERN: 10001,
   SEARCH_EXEC: 10002,
@@ -47,11 +38,5 @@ export class BaseError extends Error {
       timestamp: this.timestamp,
       cause: this.cause instanceof Error ? this.cause.message : String(this.cause ?? ""),
     };
-  }
-}
-
-export class SearchError extends BaseError {
-  constructor(pattern: string, options?: { cause?: unknown; context?: Record<string, unknown> }) {
-    super("Search failed", { ...options, context: { pattern, ...options?.context } });
   }
 }

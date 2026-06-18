@@ -2,6 +2,7 @@ import { BackupStats } from '../types/index.js';
 import { BackupStore } from '../utils/store.js';
 import { pathExists, stat } from '../utils/fs.js';
 import { parallelMap } from '../utils/concurrency.js';
+import { config } from '../utils/config.js';
 import { getTagStats } from './tags.js';
 
 /** Backup statistics including totals, size, and top tags. */
@@ -70,7 +71,7 @@ export async function getBackupStats(backups: BackupStore): Promise<StatsResult>
   const statResults = await parallelMap(
     allBackups,
     (backup) => computeFileStats(backup),
-    10,
+    config.batchConcurrency,
   );
 
   const totals = { totalSize: 0, uniqueFiles: new Set<string>(), warnings };

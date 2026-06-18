@@ -4,6 +4,7 @@ import { BackupInfo, BackupMetadata } from '../types/index.js';
 import { calculateFileHash } from '../utils/hashing.js';
 import { formatFileSize } from '../utils/formatting.js';
 import { parallelMap } from '../utils/concurrency.js';
+import { config } from '../utils/config.js';
 import { validateMetadataPath } from '../utils/validate.js';
 import { log } from '../utils/logger.js';
 
@@ -21,7 +22,7 @@ export interface FindDuplicatesResult {
   duplicateGroups: DuplicateGroup[];
   totalDuplicates: number;
   totalWastedSpace: number;
-  uniqueBackups: number;
+  uniqueHashes: number;
 }
 
 async function computeBackupHash(backup: BackupInfo): Promise<{ hash: string; size: number } | null> {
@@ -52,7 +53,7 @@ async function computeBackupHashes(
       if (!result) return null;
       return { id, hash: result.hash, size: result.size } as const;
     },
-    5
+    config.batchConcurrency
   );
 
   const hashGroups = new Map<string, { backup: BackupInfo; size: number }[]>();
@@ -71,11 +72,11 @@ async function computeBackupHashes(
 
 function buildDuplicateResults(
   hashGroups: Map<string, { backup: BackupInfo; size: number }[]>
-): { duplicateGroups: DuplicateGroup[]; totalDuplicates: number; totalWastedSpace: number; uniqueBackups: number } {
+): { duplicateGroups: DuplicateGroup[]; totalDuplicates: number; totalWastedSpace: number; uniqueHashes: number } {
   const duplicateGroups: DuplicateGroup[] = [];
   let totalDuplicates = 0;
   let totalWastedSpace = 0;
-  let uniqueBackups = 0;
+  let uniqueHashes = 0;
 
   for (const [hash, group] of hashGroups.entries()) {
     if (group.length > 1) {
@@ -88,11 +89,11 @@ function buildDuplicateResults(
       totalDuplicates += group.length - 1;
       totalWastedSpace += wastedSpace;
     }
-    uniqueBackups += 1;
+    uniqueHashes += 1;
   }
 
   duplicateGroups.sort((a, b) => b.wastedSpace - a.wastedSpace);
-  return { duplicateGroups, totalDuplicates, totalWastedSpace, uniqueBackups };
+  return { duplicateGroups, totalDuplicates, totalWastedSpace, uniqueHashes };
 }
 
 /** Finds backups with identical content by hashing, returning groups and wasted space. */
@@ -100,8 +101,8 @@ export async function findDuplicates(
   backups: BackupStore
 ): Promise<FindDuplicatesResult> {
   const hashGroups = await computeBackupHashes(backups);
-  const { duplicateGroups, totalDuplicates, totalWastedSpace, uniqueBackups } = buildDuplicateResults(hashGroups);
-  return { duplicateGroups, totalDuplicates, totalWastedSpace, uniqueBackups };
+  const { duplicateGroups, totalDuplicates, totalWastedSpace, uniqueHashes } = buildDuplicateResults(hashGroups);
+  return { duplicateGroups, totalDuplicates, totalWastedSpace, uniqueHashes };
 }
 
 /** Formats duplicate analysis results into a human-readable string. */
@@ -112,7 +113,7 @@ export function formatDuplicatesResult(result: FindDuplicatesResult): string {
       '═'.repeat(50),
       '',
       '✅ No duplicate backups found!',
-      `📊 ${result.uniqueBackups} unique backups`,
+      `📊 ${result.uniqueHashes} unique content hashes`,
     ].join('\n');
   }
 
@@ -121,7 +122,7 @@ export function formatDuplicatesResult(result: FindDuplicatesResult): string {
     '═'.repeat(50),
     '',
     '📊 Summary:',
-    `   • Unique backups: ${result.uniqueBackups}`,
+    `   • Unique hashes: ${result.uniqueHashes}`,
     `   • Duplicate backups: ${result.totalDuplicates}`,
     `   • Wasted space: ${formatFileSize(result.totalWastedSpace)}`,
     '',

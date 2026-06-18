@@ -32,6 +32,5 @@ export {
 
 export {
   BaseError,
-  SearchError,
   ECODE,
 } from "../errors/index.js";
