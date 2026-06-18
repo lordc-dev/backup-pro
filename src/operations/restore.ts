@@ -7,6 +7,7 @@ import {
   validateMetadataPath,
   backupNotFoundError,
   toMcpError,
+  sanitizePath,
 } from '../utils/validate.js';
 import { BackupStore } from '../utils/store.js';
 
@@ -31,7 +32,7 @@ export async function restoreBackup(
   if (!(await pathExists(backupPath))) {
     throw new McpError(
       ErrorCode.InternalError,
-      `Backup file missing: ${backupPath}`
+      `Backup file missing: ${sanitizePath(backupPath)}`
     );
   }
   validateMetadataPath(backupPath, `backup ${backupId}`);

@@ -1,6 +1,6 @@
 import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
 import { fileNotFoundError, toMcpError, validateAndResolveFilePath, sanitizePath } from '../utils/validate.js';
-import { copy, pathExists, stat, readFile } from '../utils/fs.js';
+import { copyAtomic, pathExists, stat, readFile } from '../utils/fs.js';
 import * as path from 'node:path';
 import { BackupStore } from '../utils/store.js';
 import { BackupInfo, CreateBackupParams, CreateBackupResult } from '../types/index.js';
@@ -104,7 +104,7 @@ export async function createBackup(
   let hashWarning: string | undefined;
 
   try {
-    await copy(resolvedPath, backupPath, { preserveTimestamps: true });
+    await copyAtomic(resolvedPath, backupPath, { preserveTimestamps: true });
   } catch (error) {
     handleBackupError(error, resolvedPath, filePath);
   }

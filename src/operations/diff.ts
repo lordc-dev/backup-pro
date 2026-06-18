@@ -1,5 +1,5 @@
 import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
-import { backupNotFoundError, validateMetadataPath } from '../utils/validate.js';
+import { backupNotFoundError, validateMetadataPath, sanitizePath } from '../utils/validate.js';
 import { pathExists, readFile, assertFileSize } from '../utils/fs.js';
 import { config } from '../utils/config.js';
 import { BackupStore } from '../utils/store.js';
@@ -68,7 +68,7 @@ export async function diffBackup(
   }
 
   if (!(await pathExists(backup.backupPath))) {
-    throw new McpError(ErrorCode.InternalError, `Backup file missing: ${backup.backupPath}`);
+    throw new McpError(ErrorCode.InternalError, `Backup file missing: ${sanitizePath(backup.backupPath)}`);
   }
   validateMetadataPath(backup.backupPath, `backup ${backupId}`);
   await assertFileSize(backup.backupPath, config.maxDiffSize, 'diff');
@@ -82,14 +82,14 @@ export async function diffBackup(
       throw backupNotFoundError(compareWithBackupId);
     }
     if (!(await pathExists(compareBackup.backupPath))) {
-      throw new McpError(ErrorCode.InternalError, `Comparison backup file missing: ${compareBackup.backupPath}`);
+      throw new McpError(ErrorCode.InternalError, `Comparison backup file missing: ${sanitizePath(compareBackup.backupPath)}`);
     }
     validateMetadataPath(compareBackup.backupPath, `backup ${compareWithBackupId}`);
     compareContent = (await readFile(compareBackup.backupPath)).toString('utf-8');
     compareLabel = `backup:${compareWithBackupId}`;
   } else {
     if (!(await pathExists(backup.metadata.originalPath))) {
-      throw new McpError(ErrorCode.InvalidParams, `Original file no longer exists: ${backup.metadata.originalPath}`);
+      throw new McpError(ErrorCode.InvalidParams, `Original file no longer exists: ${sanitizePath(backup.metadata.originalPath)}`);
     }
     compareContent = (await readFile(backup.metadata.originalPath)).toString('utf-8');
     compareLabel = 'current';

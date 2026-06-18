@@ -20,6 +20,18 @@ export const HOME_DIR = os.homedir();
 /** Server version — single source of truth. */
 export const SERVER_VERSION = '0.6.0';
 
+function parsePositiveInt(raw: string | undefined, fallback: number): number {
+  const parsed = Number.parseInt(raw ?? '', 10);
+  if (!Number.isFinite(parsed) || parsed < 1) return fallback;
+  return parsed;
+}
+
+function parseNonNegativeInt(raw: string | undefined, fallback: number): number {
+  const parsed = Number.parseInt(raw ?? '', 10);
+  if (!Number.isFinite(parsed) || parsed < 0) return fallback;
+  return parsed;
+}
+
 function parseAllowedRoots(): string[] {
   const raw = process.env.BACKUP_ALLOWED_ROOTS || '';
   if (!raw) {
@@ -42,13 +54,13 @@ function parseLogLevel(): 'debug' | 'info' | 'warn' | 'error' {
 /** Resolved server configuration derived from environment variables and defaults. */
 export const config: BackupConfig = {
   backupDir: process.env.BACKUP_DIR || path.join(HOME_DIR, '.mcp-backups'),
-  autoSaveIntervalMs: Number.parseInt(process.env.AUTO_SAVE_INTERVAL_MS || '30000', 10),
-  maxPreviewChars: Number.parseInt(process.env.MAX_PREVIEW_CHARS || '10000', 10),
+  autoSaveIntervalMs: parsePositiveInt(process.env.AUTO_SAVE_INTERVAL_MS, 30000),
+  maxPreviewChars: parsePositiveInt(process.env.MAX_PREVIEW_CHARS, 10000),
   allowedRoots: parseAllowedRoots(),
   logLevel: parseLogLevel(),
-  batchConcurrency: Number.parseInt(process.env.BATCH_CONCURRENCY || '5', 10),
-  maxBackupsPerFile: Number.parseInt(process.env.MAX_BACKUPS_PER_FILE || '0', 10),
-  maxFileSize: Number.parseInt(process.env.MAX_FILE_SIZE || '104857600', 10),
-  maxDiffSize: Number.parseInt(process.env.MAX_DIFF_SIZE || '10485760', 10),
-  maxHashSize: Number.parseInt(process.env.MAX_HASH_SIZE || '104857600', 10),
+  batchConcurrency: parsePositiveInt(process.env.BATCH_CONCURRENCY, 5),
+  maxBackupsPerFile: parseNonNegativeInt(process.env.MAX_BACKUPS_PER_FILE, 0),
+  maxFileSize: parsePositiveInt(process.env.MAX_FILE_SIZE, 104857600),
+  maxDiffSize: parsePositiveInt(process.env.MAX_DIFF_SIZE, 10485760),
+  maxHashSize: parsePositiveInt(process.env.MAX_HASH_SIZE, 104857600),
 };

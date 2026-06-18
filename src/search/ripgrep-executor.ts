@@ -18,8 +18,14 @@ import { log } from "../utils/logger.js";
 import { BaseError, ECODE } from "../errors/index.js";
 import { Semaphore } from "../utils/concurrency.js";
 
-const MAX_CONCURRENT_RG = process.env.MCP_MAX_CONCURRENT_RG ? Number.parseInt(process.env.MCP_MAX_CONCURRENT_RG, 10) : 8;
-const RG_TIMEOUT_MS = process.env.MCP_RG_TIMEOUT_MS ? Number.parseInt(process.env.MCP_RG_TIMEOUT_MS, 10) : 30_000;
+const MAX_CONCURRENT_RG = (() => {
+  const parsed = process.env.MCP_MAX_CONCURRENT_RG ? Number.parseInt(process.env.MCP_MAX_CONCURRENT_RG, 10) : 8;
+  return Number.isFinite(parsed) && parsed >= 1 ? parsed : 8;
+})();
+const RG_TIMEOUT_MS = (() => {
+  const parsed = process.env.MCP_RG_TIMEOUT_MS ? Number.parseInt(process.env.MCP_RG_TIMEOUT_MS, 10) : 30_000;
+  return Number.isFinite(parsed) && parsed >= 1000 ? parsed : 30_000;
+})();
 
 const rgSemaphore = new Semaphore(MAX_CONCURRENT_RG);
 
