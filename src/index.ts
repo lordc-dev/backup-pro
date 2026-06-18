@@ -24,7 +24,7 @@ import { log } from './utils/logger.js';
 import { backupRateLimiter } from './utils/concurrency.js';
 
 export class BackupServer {
-  private server: McpServer;
+  private readonly server: McpServer;
   private backups!: BackupStore;
 
   constructor() {
@@ -173,7 +173,10 @@ export class BackupServer {
 }
 
 const server = new BackupServer();
-server.init().then(() => server.run()).catch(err => {
+try {
+  await server.init();
+  await server.run();
+} catch (err) {
   log.error('backup-server', 'Fatal error starting server', { error: String(err) });
   process.exit(1);
-});
+}
