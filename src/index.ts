@@ -1,7 +1,10 @@
 #!/usr/bin/env node
 
-import dotenv from "dotenv";
-dotenv.config();
+// Preload .env before any other import — ESM evaluates all imports
+// before module-level statements, so a bare dotenv.config() statement
+// here would run AFTER config.ts already cached stale env values.
+// See src/preload-env.ts for details.
+import "./preload-env.js";
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";

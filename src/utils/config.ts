@@ -32,15 +32,25 @@ function parseNonNegativeInt(raw: string | undefined, fallback: number): number 
   return parsed;
 }
 
+function expandRoot(r: string): string {
+  if (r === '~') return HOME_DIR;
+  if (r.startsWith('~/')) return path.join(HOME_DIR, r.substring(1));
+  return r;
+}
+
 function parseAllowedRoots(): string[] {
   const raw = process.env.BACKUP_ALLOWED_ROOTS || '';
+  if (raw === '*') {
+    console.warn('[backup-pro] WARNING: BACKUP_ALLOWED_ROOTS=* — roots restriction disabled. Unrestricted filesystem access. Use only in trusted dev environments.');
+    return [];
+  }
   if (!raw) {
     console.warn('[backup-pro] WARNING: BACKUP_ALLOWED_ROOTS not set. Defaulting to current working directory. Set BACKUP_ALLOWED_ROOTS explicitly in production to restrict file access.');
     return [process.cwd()];
   }
   const roots = raw
     .split(':')
-    .map(r => r.startsWith('~/') ? path.join(HOME_DIR, r.substring(1)) : r)
+    .map(expandRoot)
     .filter(r => r.length > 0);
   return roots.length > 0 ? roots : [process.cwd()];
 }
