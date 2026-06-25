@@ -7,6 +7,7 @@ export interface BackupConfig {
   autoSaveIntervalMs: number;
   maxPreviewChars: number;
   allowedRoots: string[];
+  isUnrestricted: boolean;
   logLevel: 'debug' | 'info' | 'warn' | 'error';
   batchConcurrency: number;
   maxBackupsPerFile: number;
@@ -32,27 +33,31 @@ function parseNonNegativeInt(raw: string | undefined, fallback: number): number 
   return parsed;
 }
 
-function expandRoot(r: string): string {
-  if (r === '~') return HOME_DIR;
-  if (r.startsWith('~/')) return path.join(HOME_DIR, r.substring(1));
-  return r;
+function expandTilde(p: string): string {
+  if (p === '~') return HOME_DIR;
+  if (p.startsWith('~/')) return path.join(HOME_DIR, p.substring(1));
+  return p;
 }
 
-function parseAllowedRoots(): string[] {
+function expandRoot(r: string): string {
+  return expandTilde(r);
+}
+
+function parseAllowedRoots(): { roots: string[]; unrestricted: boolean } {
   const raw = process.env.BACKUP_ALLOWED_ROOTS || '';
   if (raw === '*') {
     console.warn('[backup-pro] WARNING: BACKUP_ALLOWED_ROOTS=* — roots restriction disabled. Unrestricted filesystem access. Use only in trusted dev environments.');
-    return [];
+    return { roots: [], unrestricted: true };
   }
   if (!raw) {
     console.warn('[backup-pro] WARNING: BACKUP_ALLOWED_ROOTS not set. Defaulting to current working directory. Set BACKUP_ALLOWED_ROOTS explicitly in production to restrict file access.');
-    return [process.cwd()];
+    return { roots: [process.cwd()], unrestricted: false };
   }
   const roots = raw
     .split(':')
     .map(expandRoot)
     .filter(r => r.length > 0);
-  return roots.length > 0 ? roots : [process.cwd()];
+  return roots.length > 0 ? { roots, unrestricted: false } : { roots: [process.cwd()], unrestricted: false };
 }
 
 function parseLogLevel(): 'debug' | 'info' | 'warn' | 'error' {
@@ -62,11 +67,14 @@ function parseLogLevel(): 'debug' | 'info' | 'warn' | 'error' {
 }
 
 /** Resolved server configuration derived from environment variables and defaults. */
+const _roots = parseAllowedRoots();
+
 export const config: BackupConfig = {
-  backupDir: process.env.BACKUP_DIR || path.join(HOME_DIR, '.mcp-backups'),
+  backupDir: expandTilde(process.env.BACKUP_DIR || path.join(HOME_DIR, '.mcp-backups')),
   autoSaveIntervalMs: parsePositiveInt(process.env.AUTO_SAVE_INTERVAL_MS, 30000),
   maxPreviewChars: parsePositiveInt(process.env.MAX_PREVIEW_CHARS, 10000),
-  allowedRoots: parseAllowedRoots(),
+  allowedRoots: _roots.roots,
+  isUnrestricted: _roots.unrestricted,
   logLevel: parseLogLevel(),
   batchConcurrency: parsePositiveInt(process.env.BATCH_CONCURRENCY, 5),
   maxBackupsPerFile: parseNonNegativeInt(process.env.MAX_BACKUPS_PER_FILE, 0),
