@@ -1,9 +1,9 @@
 import { BackupStore } from '../utils/store.js';
-import { getAllTags as getAllTagsUtil } from '../utils/persistence.js';
+import { getAllTags } from './filter-utils.js';
 
 /** Returns all unique tags across all backups. */
 export function getTags(backups: BackupStore): string[] {
-  return getAllTagsUtil(backups);
+  return getAllTags(backups);
 }
 
 /** Returns tag usage counts, sorted by frequency descending. */

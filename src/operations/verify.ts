@@ -1,8 +1,7 @@
 import { backupNotFoundError, validateMetadataPath } from '../utils/validate.js';
-import { pathExists, readFile, assertFileSize } from '../utils/fs.js';
+import { pathExists, hashFile, assertFileSize } from '../utils/fs.js';
 import { config } from '../utils/config.js';
 import { BackupStore } from '../utils/store.js';
-import { calculateFileHash } from '../utils/hashing.js';
 
 export interface VerifyResult {
   backupId: string;
@@ -20,8 +19,7 @@ export interface VerifyResult {
 
 async function computeBackupHash(backupPath: string, storedHash: string | undefined): Promise<{ hash: string | undefined; intact: boolean; error?: string }> {
   try {
-    const content = await readFile(backupPath);
-    const hash = calculateFileHash(content);
+    const hash = await hashFile(backupPath);
     return { hash, intact: storedHash ? hash === storedHash : true };
   } catch (error) {
     return { hash: undefined, intact: false, error: `Error verifying backup integrity: ${error instanceof Error ? error.message : String(error)}` };
@@ -30,8 +28,7 @@ async function computeBackupHash(backupPath: string, storedHash: string | undefi
 
 async function computeCurrentHash(originalPath: string, storedHash: string | undefined): Promise<{ hash: string | undefined; changed: boolean; error?: string }> {
   try {
-    const content = await readFile(originalPath);
-    const hash = calculateFileHash(content);
+    const hash = await hashFile(originalPath);
     return { hash, changed: storedHash ? hash !== storedHash : false };
   } catch (error) {
     return { hash: undefined, changed: false, error: `Error reading original file: ${error instanceof Error ? error.message : String(error)}` };

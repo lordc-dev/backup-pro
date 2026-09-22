@@ -1,7 +1,6 @@
-import { pathExists, readFile, stat } from '../utils/fs.js';
+import { pathExists, hashFile, stat } from '../utils/fs.js';
 import { BackupStore } from '../utils/store.js';
 import { BackupInfo, BackupMetadata } from '../types/index.js';
-import { calculateFileHash } from '../utils/hashing.js';
 import { formatFileSize } from '../utils/formatting.js';
 import { parallelMap } from '../utils/concurrency.js';
 import { config } from '../utils/config.js';
@@ -31,8 +30,7 @@ async function computeBackupHash(backup: BackupInfo): Promise<{ hash: string; si
   }
   try {
     validateMetadataPath(backup.backupPath, `backup ${backup.metadata.id}`);
-    const content = await readFile(backup.backupPath);
-    const hash = calculateFileHash(content);
+    const hash = await hashFile(backup.backupPath);
     const stats = await stat(backup.backupPath);
     return { hash, size: stats.size };
   } catch (error) {

@@ -1,10 +1,10 @@
 import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
 import { fileNotFoundError, toMcpError, validateAndResolveFilePath, sanitizePath } from '../utils/validate.js';
-import { copyAtomic, pathExists, stat, readFile } from '../utils/fs.js';
+import { copyAtomic, ensureDir, stat, hashFile } from '../utils/fs.js';
 import * as path from 'node:path';
 import { BackupStore } from '../utils/store.js';
 import { BackupInfo, CreateBackupParams, CreateBackupResult } from '../types/index.js';
-import { generateBackupId, generateBackupFileName, ensureBackupDir, calculateFileHash } from '../utils/hashing.js';
+import { generateBackupId, generateBackupFileName } from '../utils/hashing.js';
 
 import { config } from '../utils/config.js';
 
@@ -44,7 +44,6 @@ function buildBackupInfo(
       fileHash,
       relatedFiles,
       projectContext,
-      author: undefined,
     },
   };
 
@@ -61,10 +60,14 @@ function buildBackupInfo(
 }
 
 async function validateFile(filePath: string, resolvedPath: string): Promise<{ size: number }> {
-  if (!(await pathExists(resolvedPath))) {
-    throw fileNotFoundError(resolvedPath);
+  let stats;
+  try {
+    stats = await stat(resolvedPath);
+  } catch (error) {
+    const nodeError = error as NodeJS.ErrnoException;
+    if (nodeError.code === 'ENOENT') throw fileNotFoundError(resolvedPath);
+    throw nodeError;
   }
-  const stats = await stat(resolvedPath);
   if (!stats.isFile()) {
     throw new McpError(ErrorCode.InvalidParams, `Path is not a file: ${sanitizePath(resolvedPath)}`);
   }
@@ -93,7 +96,6 @@ export async function createBackup(
 
   validateBackupCount(filePath, resolvedPath, backups);
   const stats = await validateFile(filePath, resolvedPath);
-  await ensureBackupDir();
 
   const timestamp = new Date().toISOString();
   const backupId = generateBackupId(resolvedPath, timestamp);
@@ -104,14 +106,16 @@ export async function createBackup(
   let hashWarning: string | undefined;
 
   try {
+    await ensureDir(config.backupDir);
     await copyAtomic(resolvedPath, backupPath, { preserveTimestamps: true });
   } catch (error) {
     handleBackupError(error, resolvedPath, filePath);
   }
 
+  // Hash the backup copy (streaming) — no second read of the original.
+  // Failure here is a warning, not fatal: the backup file already exists.
   try {
-    const content = await readFile(resolvedPath);
-    fileHash = calculateFileHash(content);
+    fileHash = await hashFile(backupPath);
   } catch (error) {
     hashWarning = `Failed to calculate file hash: ${error instanceof Error ? error.message : String(error)}`;
   }

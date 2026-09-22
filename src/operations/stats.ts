@@ -1,4 +1,4 @@
-import { BackupStats } from '../types/index.js';
+import { BackupStats, BackupInfo } from '../types/index.js';
 import { BackupStore } from '../utils/store.js';
 import { pathExists, stat } from '../utils/fs.js';
 import { parallelMap } from '../utils/concurrency.js';
@@ -12,7 +12,7 @@ export interface StatsResult {
 }
 
 /** Computes the size of a backup, using metadata size when available, falling back to filesystem stat. */
-async function computeFileStats(backup: import('../types/index.js').BackupInfo): Promise<{ size: number; warning?: string }> {
+async function computeFileStats(backup: BackupInfo): Promise<{ size: number; warning?: string }> {
   if (backup.metadata.size) {
     return { size: backup.metadata.size };
   }
@@ -32,7 +32,7 @@ async function computeFileStats(backup: import('../types/index.js').BackupInfo):
 
 /** Processes a single backup's stat result, accumulating into totals. */
 function processBackupStat(
-  backup: import('../types/index.js').BackupInfo,
+  backup: BackupInfo,
   result: PromiseSettledResult<{ size: number; warning?: string }>,
   totals: { totalSize: number; uniqueFiles: Set<string>; warnings: string[] },
 ): void {

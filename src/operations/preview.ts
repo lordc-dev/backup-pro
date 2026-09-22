@@ -6,9 +6,9 @@ import * as path from 'node:path';
 import { BackupStore } from '../utils/store.js';
 import { formatFileSize } from '../utils/formatting.js';
 
-/** Maximum file size for preview (50 MB) — prevents loading huge files into memory
- *  even before the maxChars cap applies. */
-const MAX_PREVIEW_FILE_SIZE = 50 * 1024 * 1024;
+/** Maximum file size for reading a backup into memory (50 MB) — prevents loading huge files
+ *  even before the maxChars cap applies. Shared with the MCP resource read handler. */
+export const MAX_PREVIEW_FILE_SIZE = 50 * 1024 * 1024;
 
 /** Result of previewing a backup's file content. */
 export interface PreviewResult {

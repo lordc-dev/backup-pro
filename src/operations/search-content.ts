@@ -151,14 +151,10 @@ export async function searchBackupContent(
     };
   }
 
-  const pathToId = new Map<string, string>();
-  for (const [id, backup] of backups.entries()) {
-    pathToId.set(backup.backupPath, id);
-  }
-
   let rgResults: ContentSearchResult[];
   try {
-    const validation = validateRegexPattern(pattern, { pcre2: requiresPCRE2(pattern) });
+    const needsPCRE2 = requiresPCRE2(pattern);
+    const validation = validateRegexPattern(pattern, { pcre2: needsPCRE2 });
     if (!validation.valid) {
       return {
         ...emptyResult,
@@ -166,8 +162,6 @@ export async function searchBackupContent(
         unavailableReason: validation.errorMessage ?? `Invalid search pattern: ${pattern}`,
       };
     }
-
-    const needsPCRE2 = requiresPCRE2(pattern);
 
     const args = buildSearchArgs(pattern, config, { ignoreCase, maxResults, contextLines });
 
@@ -179,6 +173,12 @@ export async function searchBackupContent(
       unavailable: true,
       unavailableReason: `Search failed: ${error instanceof Error ? error.message : String(error)}`,
     };
+  }
+
+  // Built only after validation passed — avoids wasted work on early returns.
+  const pathToId = new Map<string, string>();
+  for (const [id, backup] of backups.entries()) {
+    pathToId.set(backup.backupPath, id);
   }
 
   const matches: BackupContentMatch[] = [];

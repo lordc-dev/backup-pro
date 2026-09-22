@@ -1,5 +1,5 @@
 import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
-import { copyAtomic, pathExists, mkdirp } from '../utils/fs.js';
+import { copyAtomic, pathExists, ensureDir } from '../utils/fs.js';
 import * as path from 'node:path';
 import { RestoreBackupParams } from '../types/index.js';
 import {
@@ -42,10 +42,8 @@ export async function restoreBackup(
   const restoreTo = resolvedTargetPath || resolvedOriginal;
 
   try {
-    const dir = path.dirname(restoreTo);
-    if (!(await pathExists(dir))) {
-      await mkdirp(dir);
-    }
+    // mkdir recursive is idempotent — no existence check needed.
+    await ensureDir(path.dirname(restoreTo));
 
     // Atomic copy: writes to a temp file then renames into place.
     // No prior remove needed — rename overwrites the destination atomically.

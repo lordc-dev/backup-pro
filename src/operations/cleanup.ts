@@ -4,9 +4,13 @@ import { BackupStore } from '../utils/store.js';
 import { log } from '../utils/logger.js';
 import { pathExists, remove, stat } from '../utils/fs.js';
 import { validateMetadataPath } from '../utils/validate.js';
+import { parallelMap } from '../utils/concurrency.js';
+import { config } from '../utils/config.js';
+
+const OLDER_THAN_REGEX = /^(\d+)([dhm])$/;
 
 function parseOlderThan(olderThan: string): Date {
-  const match = new RegExp(/^(\d+)([dhm])$/).exec(olderThan);
+  const match = OLDER_THAN_REGEX.exec(olderThan);
   if (!match) {
     throw new McpError(ErrorCode.InvalidParams, `Invalid olderThan format: '${olderThan}'. Use format like '7d', '24h', or '30m'.`);
   }
@@ -91,7 +95,6 @@ async function classifyBackups(
   keptBackups: BackupInfo[]
 ): Promise<{ deletedBackups: BackupInfo[]; freedSpace: number }> {
   const deletedBackups: BackupInfo[] = [];
-  let freedSpace = 0;
 
   for (const [_file, fileBackups] of groupedByFile.entries()) {
     fileBackups.sort((a, b) =>
@@ -102,12 +105,15 @@ async function classifyBackups(
       const backup = fileBackups[i];
       if (shouldDeleteBackup(backup, i, keepLast, cutoffDate)) {
         deletedBackups.push(backup);
-        freedSpace += await computeFreedSpace(backup);
       } else {
         keptBackups.push(backup);
       }
     }
   }
+
+  // Stat deleted files in parallel (bounded) instead of sequentially.
+  const sizes = await parallelMap(deletedBackups, b => computeFreedSpace(b), config.batchConcurrency);
+  const freedSpace = sizes.reduce((sum, r) => sum + (r.status === 'fulfilled' ? r.value : 0), 0);
 
   return { deletedBackups, freedSpace };
 }
@@ -137,12 +143,7 @@ export async function cleanupBackups(
     throw new McpError(ErrorCode.InvalidParams, 'At least one of keepLast, olderThan, or filePath must be specified');
   }
 
-  if (olderThan) {
-    parseOlderThan(olderThan);
-  }
-
   const cutoffDate = olderThan ? parseOlderThan(olderThan) : undefined;
-
   const keptBackups: BackupInfo[] = [];
   const groupedByFile = groupBackupsByFile(backups, filePath, excludeTags, keptBackups);
   const { deletedBackups, freedSpace } = await classifyBackups(groupedByFile, keepLast, cutoffDate, keptBackups);

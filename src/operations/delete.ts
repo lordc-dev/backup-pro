@@ -54,26 +54,3 @@ export async function deleteBackup(
     metadata
   };
 }
-
-/** Deletes multiple backups by ID, collecting successes and failures. */
-export async function deleteBackups(
-  backupIds: string[],
-  backups: BackupStore
-): Promise<{ deleted: DeleteResult[]; failed: { id: string; error: string }[] }> {
-  const deleted: DeleteResult[] = [];
-  const failed: { id: string; error: string }[] = [];
-
-  for (const id of backupIds) {
-    try {
-      const result = await deleteBackup(id, backups);
-      deleted.push(result);
-    } catch (error) {
-      failed.push({
-        id,
-        error: error instanceof Error ? error.message : String(error)
-      });
-    }
-  }
-
-  return { deleted, failed };
-}

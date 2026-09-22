@@ -8,7 +8,7 @@ export { getBackupStats, type StatsResult } from './stats.js';
 export { diffBackup, type DiffResult } from './diff.js';
 export { previewBackup, type PreviewResult } from './preview.js';
 export { getBackup, formatBackupDetails, type BackupDetails } from './get.js';
-export { deleteBackup, deleteBackups, type DeleteResult } from './delete.js';
+export { deleteBackup, type DeleteResult } from './delete.js';
 export { verifyBackup, formatVerifyResult, type VerifyResult } from './verify.js';
 export { batchBackup, formatBatchResult, type BatchBackupResult } from './batch.js';
 export { findDuplicates, formatDuplicatesResult, type DuplicateGroup, type FindDuplicatesResult } from './duplicates.js';

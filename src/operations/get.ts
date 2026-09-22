@@ -1,9 +1,8 @@
 import { backupNotFoundError, validateMetadataPath } from '../utils/validate.js';
-import { pathExists, stat, readFile, assertFileSize } from '../utils/fs.js';
+import { pathExists, stat, hashFile, assertFileSize } from '../utils/fs.js';
 import { config } from '../utils/config.js';
 import { BackupStore } from '../utils/store.js';
 import { BackupMetadata, BackupInfo } from '../types/index.js';
-import { calculateFileHash } from '../utils/hashing.js';
 import { formatFileSize } from '../utils/formatting.js';
 
 /** Detailed backup information including existence checks, size, and hash comparison. */
@@ -35,8 +34,7 @@ async function computeCurrentState(backup: BackupInfo): Promise<{ currentSize: n
         return { currentSize, hashMatch, warnings };
       }
       await assertFileSize(backup.metadata.originalPath, config.maxHashSize, 'get_backup');
-      const currentContent = await readFile(backup.metadata.originalPath);
-      const currentHash = calculateFileHash(currentContent);
+      const currentHash = await hashFile(backup.metadata.originalPath);
       hashMatch = currentHash === backup.metadata.fileHash;
     } catch (error) {
       warnings.push(`Failed to compare hashes: ${error instanceof Error ? error.message : String(error)}`);
