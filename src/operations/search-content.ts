@@ -35,6 +35,7 @@ export interface SearchContentResult {
   matches: BackupContentMatch[];
   unavailable?: boolean;
   unavailableReason?: string;
+  warning?: string;
 }
 
 function isValidRgMatch(data: unknown): data is { type: 'match'; data: { path?: { text?: string }; line_number?: number; lines?: { text?: string }; submatches?: Array<{ match?: { text?: string }; start?: number; end?: number }> } } {
@@ -152,6 +153,7 @@ export async function searchBackupContent(
   }
 
   let rgResults: ContentSearchResult[];
+  let rgWarning_: string | undefined;
   try {
     const needsPCRE2 = requiresPCRE2(pattern);
     const validation = validateRegexPattern(pattern, { pcre2: needsPCRE2 });
@@ -165,8 +167,9 @@ export async function searchBackupContent(
 
     const args = buildSearchArgs(pattern, config, { ignoreCase, maxResults, contextLines });
 
-    const output = await executeRipgrepWithLimit(args, 10 * 1024 * 1024, needsPCRE2);
+    const { output, warning: rgWarning } = await executeRipgrepWithLimit(args, 10 * 1024 * 1024, needsPCRE2);
     rgResults = parseJsonResults(output);
+    rgWarning_ = rgWarning;
   } catch (error) {
     return {
       ...emptyResult,
@@ -198,5 +201,6 @@ export async function searchBackupContent(
     query: pattern,
     totalMatches: matches.length,
     matches,
+    ...(rgWarning_ ? { warning: rgWarning_ } : {}),
   };
 }

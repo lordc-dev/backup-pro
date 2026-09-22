@@ -67,15 +67,17 @@ describe('executeRipgrepWithLimit', () => {
     const available = await isRipgrepAvailable();
     if (!available) return;
 
-    const result = await executeRipgrepWithLimit(['--files', '/tmp'], 1024 * 1024);
-    expect(typeof result).toBe('string');
+    const { output, warning } = await executeRipgrepWithLimit(['--files', '/tmp'], 1024 * 1024);
+    expect(typeof output).toBe('string');
+    expect(warning).toBeUndefined();
   });
 
-  it('respects the byte limit', async () => {
+  it('reports a warning when the byte limit truncates output', async () => {
     const available = await isRipgrepAvailable();
     if (!available) return;
 
-    const result = await executeRipgrepWithLimit(['--files', '/tmp'], 10);
-    expect(Buffer.byteLength(result, 'utf-8')).toBeLessThanOrEqual(65536);
+    const { warning } = await executeRipgrepWithLimit(['--files', '/tmp'], 10);
+    expect(warning).toBeDefined();
+    expect(warning).toContain('truncated');
   });
 });

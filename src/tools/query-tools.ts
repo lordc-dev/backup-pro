@@ -146,6 +146,9 @@ export const searchBackupContentTool: ToolDefinition = {
       output += `\n\n⚠️  Search unavailable: ${result.unavailableReason}`;
       return textResult(output);
     }
+    if (result.warning) {
+      output += `\n\n⚠️  ${result.warning}`;
+    }
     output += `\n${'─'.repeat(50)}\n\n`;
     if (result.matches.length === 0) {
       output += `No matches found in backup contents.`;

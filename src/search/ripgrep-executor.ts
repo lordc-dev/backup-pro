@@ -112,13 +112,20 @@ function buildFinalArgs(args: string[], pcre2: boolean): string[] {
   return pcre2 ? ["--pcre2", ...args] : args;
 }
 
+/** Result of a byte-limited ripgrep execution. `warning` is set when the process
+ *  died early (spawn error or timeout) — output may be partial. */
+export interface RgExecutionResult {
+  output: string;
+  warning?: string;
+}
+
 export async function executeRipgrepWithLimit(
   args: string[],
   maxBytes: number,
   pcre2 = false
-): Promise<string> {
+): Promise<RgExecutionResult> {
   const rgExecutable = await getRgPath();
-  if (!rgExecutable) return "";
+  if (!rgExecutable) return { output: "", warning: "ripgrep executable not found" };
 
   await acquireSlot();
 
@@ -126,12 +133,14 @@ export async function executeRipgrepWithLimit(
     let output = "";
     let totalBytes = 0;
     let killed = false;
+    let warning: string | undefined;
     const finalArgs = buildFinalArgs(args, pcre2);
     const rg = spawn(rgExecutable, finalArgs);
 
     const timer = setTimeout(() => {
       if (!killed) {
         killed = true;
+        warning = `ripgrep timed out after ${RG_TIMEOUT_MS}ms — results may be incomplete`;
         rg.kill("SIGTERM");
       }
     }, RG_TIMEOUT_MS);
@@ -142,6 +151,7 @@ export async function executeRipgrepWithLimit(
         totalBytes += data.length;
         if (totalBytes > maxBytes) {
           killed = true;
+          warning = `output exceeded ${maxBytes} bytes — results truncated`;
           rg.kill("SIGTERM");
         }
       }
@@ -154,14 +164,14 @@ export async function executeRipgrepWithLimit(
     rg.on("close", () => {
       clearTimeout(timer);
       releaseSlot();
-      resolve(output);
+      resolve({ output, ...(warning ? { warning } : {}) });
     });
 
     rg.on("error", (error: Error) => {
       clearTimeout(timer);
       releaseSlot();
       log.warn("ripgrep", `spawn error: ${error.message}`);
-      resolve(output);
+      resolve({ output, warning: `ripgrep spawn failed: ${error.message}` });
     });
   });
 }
