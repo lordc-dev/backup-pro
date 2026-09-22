@@ -1,7 +1,10 @@
 import { promises as fsp } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { log } from './logger.js';
 
 export const readFile = fsp.readFile;
+
+const HASH_CHUNK_SIZE = 1024 * 1024;
 
 export async function realpath(filePath: string): Promise<string | undefined> {
   try {
@@ -13,38 +16,45 @@ export async function realpath(filePath: string): Promise<string | undefined> {
   }
 }
 
+/** Computes SHA-256 of a file by streaming 1MB chunks. Never loads the whole file. */
+export async function hashFile(filePath: string): Promise<string> {
+  const hash = createHash('sha256');
+  const fh = await fsp.open(filePath, 'r');
+  try {
+    const buffer = Buffer.alloc(HASH_CHUNK_SIZE);
+    let readResult: import('node:fs/promises').FileReadResult<Buffer>;
+    while ((readResult = await fh.read(buffer, 0, HASH_CHUNK_SIZE, null)).bytesRead > 0) {
+      hash.update(readResult.bytesRead === HASH_CHUNK_SIZE ? buffer : buffer.subarray(0, readResult.bytesRead));
+    }
+  } finally {
+    await fh.close();
+  }
+  return hash.digest('hex');
+}
 
-async function safeOpenAndVerify(filePath: string): Promise<{ fh: import('node:fs/promises').FileHandle; content: Buffer; stat: import('node:fs').Stats }> {
+async function safeOpenAndVerify(filePath: string): Promise<{ fh: import('node:fs/promises').FileHandle; stat: import('node:fs').Stats }> {
   const fh = await fsp.open(filePath, 'r');
   try {
     const beforeStat = await fh.stat();
-    const content = await fh.readFile();
     const afterStat = await fh.stat();
     if (beforeStat.ino !== afterStat.ino || beforeStat.dev !== afterStat.dev) {
       throw new Error('File identity changed during operation — possible TOCTOU race condition');
     }
-    return { fh, content, stat: beforeStat };
+    return { fh, stat: beforeStat };
   } catch (err) {
     await fh.close();
     throw err;
   }
 }
 
-export async function safeReadFile(filePath: string): Promise<Buffer> {
-  const { fh, content } = await safeOpenAndVerify(filePath);
-  await fh.close();
-  return content;
-}
-
+/** Copies src to dest via native copyFile (kernel fast-path on APFS), preserving timestamps.
+ *  Verifies file identity (TOCTOU) via an open handle, then copies by path. */
 export async function safeCopyFile(src: string, dest: string, options?: { preserveTimestamps?: boolean }): Promise<void> {
-  const { fh, content, stat: srcStat } = await safeOpenAndVerify(src);
-  try {
-    await fsp.writeFile(dest, content);
-    if (options?.preserveTimestamps) {
-      await fsp.utimes(dest, srcStat.atime, srcStat.mtime);
-    }
-  } finally {
-    await fh.close();
+  const { fh, stat: srcStat } = await safeOpenAndVerify(src);
+  await fh.close();
+  await fsp.copyFile(src, dest);
+  if (options?.preserveTimestamps) {
+    await fsp.utimes(dest, srcStat.atime, srcStat.mtime);
   }
 }
 
@@ -83,10 +93,6 @@ export async function copy(src: string, dest: string, options?: { preserveTimest
       await fsp.utimes(dest, srcStat.atime, srcStat.mtime);
     }
   }
-}
-
-export async function mkdirp(dir: string): Promise<void> {
-  await fsp.mkdir(dir, { recursive: true });
 }
 
 export async function ensureDir(dir: string): Promise<void> {

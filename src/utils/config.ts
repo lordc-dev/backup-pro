@@ -1,5 +1,6 @@
 import * as path from 'node:path';
 import * as os from 'node:os';
+import { createRequire } from 'node:module';
 
 /** Configuration for the backup MCP server. */
 export interface BackupConfig {
@@ -18,8 +19,9 @@ export interface BackupConfig {
 
 export const HOME_DIR = os.homedir();
 
-/** Server version — single source of truth. */
-export const SERVER_VERSION = '0.6.0';
+/** Server version — single source of truth: package.json. */
+const require = createRequire(import.meta.url);
+export const SERVER_VERSION: string = require('../../package.json').version;
 
 function parsePositiveInt(raw: string | undefined, fallback: number): number {
   const parsed = Number.parseInt(raw ?? '', 10);

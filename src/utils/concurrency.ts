@@ -38,16 +38,19 @@ export class RateLimiter {
 
   /** Wait until a request slot is available within the rate limit window. */
   async acquire(): Promise<void> {
-    const now = Date.now();
-    this.timestamps = this.timestamps.filter(t => now - t < this.windowMs);
-    if (this.timestamps.length < this.maxRequests) {
-      this.timestamps.push(now);
-      return;
+    // Loop: after sleeping, re-check — multiple waiters wake concurrently
+    // and must not all push past the limit.
+    for (;;) {
+      const now = Date.now();
+      this.timestamps = this.timestamps.filter(t => now - t < this.windowMs);
+      if (this.timestamps.length < this.maxRequests) {
+        this.timestamps.push(now);
+        return;
+      }
+      const oldestInWindow = this.timestamps[0];
+      const waitMs = this.windowMs - (now - oldestInWindow) + 1;
+      await new Promise<void>(resolve => setTimeout(resolve, waitMs));
     }
-    const oldestInWindow = this.timestamps[0];
-    const waitMs = this.windowMs - (now - oldestInWindow) + 1;
-    await new Promise<void>(resolve => setTimeout(resolve, waitMs));
-    this.timestamps.push(Date.now());
   }
 }
 

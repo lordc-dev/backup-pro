@@ -8,10 +8,11 @@ const LOG_LEVELS: Record<LogLevel, number> = {
   error: 3,
 };
 
-const currentLevel: LogLevel = (process.env.LOG_LEVEL as LogLevel) || 'info';
+// SSOT: log level comes from config.ts (which parses LOG_LEVEL once).
+import { config } from './config.js';
 
 function shouldLog(level: LogLevel): boolean {
-  return LOG_LEVELS[level] >= LOG_LEVELS[currentLevel];
+  return LOG_LEVELS[level] >= LOG_LEVELS[config.logLevel];
 }
 
 function formatMessage(level: LogLevel, component: string, message: string, data?: Record<string, unknown>): string {

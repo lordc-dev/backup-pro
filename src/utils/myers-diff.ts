@@ -1,5 +1,7 @@
 /**
- * Minimal Myers diff implementation for line-level comparison.
+ * Line-level diff via LCS dynamic programming (O(n×m) time/space).
+ * Not Myers' algorithm despite the filename — kept for import compatibility.
+ * // ponytail: LCS DP is fine under the 10M-cell product cap; swap for true Myers if diffs of huge files get slow.
  * Replaces the `diff` npm package to eliminate 84MB of dependencies.
  */
 
@@ -106,14 +108,15 @@ function computeChangesFromLCS(oldLines: string[], newLines: string[], lcs: stri
 function longestCommonSubsequence(a: string[], b: string[]): string[] {
   const m = a.length;
   const n = b.length;
-  const dp: number[][] = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0));
+  // Flat Int32Array: half the memory of number[][] and cache-friendly.
+  const dp = new Int32Array((m + 1) * (n + 1));
 
   for (let i = 1; i <= m; i++) {
     for (let j = 1; j <= n; j++) {
       if (a[i - 1] === b[j - 1]) {
-        dp[i][j] = dp[i - 1][j - 1] + 1;
+        dp[i * (n + 1) + j] = dp[(i - 1) * (n + 1) + (j - 1)] + 1;
       } else {
-        dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+        dp[i * (n + 1) + j] = Math.max(dp[(i - 1) * (n + 1) + j], dp[i * (n + 1) + (j - 1)]);
       }
     }
   }
@@ -126,7 +129,7 @@ function longestCommonSubsequence(a: string[], b: string[]): string[] {
       result.unshift(a[i - 1]);
       i--;
       j--;
-    } else if (dp[i - 1][j] > dp[i][j - 1]) {
+    } else if (dp[(i - 1) * (n + 1) + j] > dp[i * (n + 1) + (j - 1)]) {
       i--;
     } else {
       j--;

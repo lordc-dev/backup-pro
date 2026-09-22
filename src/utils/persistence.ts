@@ -26,10 +26,13 @@ async function getIntegrityKey(): Promise<string> {
   return key;
 }
 
-/** Computes an HMAC-SHA256 of the backup entries for integrity verification. */
+/** Computes an HMAC-SHA256 of the backup entries for integrity verification.
+ *  Serializes with top-level keys in sorted order for determinism. */
 function computeMetadataHmac(entries: Record<string, BackupInfo>, key: string): string {
-  const data = JSON.stringify(entries, Object.keys(entries).sort((a, b) => a.localeCompare(b)));
-  return createHmac('sha256', key).update(data).digest('hex');
+  const sortedKeys = Object.keys(entries).sort((a, b) => a.localeCompare(b));
+  const ordered: Record<string, BackupInfo> = {};
+  for (const k of sortedKeys) ordered[k] = entries[k];
+  return createHmac('sha256', key).update(JSON.stringify(ordered)).digest('hex');
 }
 
 interface StoredMetadata {
@@ -42,7 +45,7 @@ function migrateMetadata(data: StoredMetadata): Map<string, BackupInfo> {
   const version = data.schemaVersion ?? 1;
   const migrated = new Map<string, BackupInfo>(Object.entries(data.backups ?? {}));
 
-  if (version < 2) {
+  if (version < CURRENT_SCHEMA_VERSION) {
     log.info('persistence', `Migrating metadata from schema v${version} to v${CURRENT_SCHEMA_VERSION}`);
   }
 
@@ -56,8 +59,15 @@ export async function loadBackupMetadata(): Promise<{ backups: Map<string, Backu
     }
     
     const data: StoredMetadata = await readJSON(getMetadataFile());
-    const entries = data.backups ?? (data as unknown as Record<string, BackupInfo>);
-    const backups = migrateMetadata({ backups: entries });
+    // Legacy v1 format: the file IS a flat record of BackupMetadata (no wrapper).
+    // Wrap each entry into BackupInfo so the store shape is consistent.
+    const entries: Record<string, BackupInfo> = data.backups ?? Object.fromEntries(
+      Object.entries(data as unknown as Record<string, BackupInfo['metadata']>).map(([id, meta]) => [
+        id,
+        { backupPath: path.join(config.backupDir, `${meta.originalPath?.split('/').pop() ?? id}.${id}.backup`), metadata: meta },
+      ])
+    );
+    const backups = migrateMetadata({ ...data, backups: entries });
 
     if (data.integrity) {
       try {
@@ -99,98 +109,4 @@ export async function saveBackupMetadata(backups: Map<string, BackupInfo>): Prom
     log.error('persistence', 'Error saving backup metadata', { error: error instanceof Error ? error.message : String(error) });
     throw error;
   }
-}
-
-export function getAllTags(backups: Map<string, BackupInfo>): string[] {
-  const tagsSet = new Set<string>();
-  
-  for (const backup of backups.values()) {
-    if (backup.metadata.tags) {
-      backup.metadata.tags.forEach(tag => tagsSet.add(tag));
-      }
-  }
-  
-  return Array.from(tagsSet).sort((a, b) => a.localeCompare(b));
-}
-
-export function filterByTags(
-  backups: Map<string, BackupInfo>,
-  tags: string[]
-): Map<string, BackupInfo> {
-  if (!tags || tags.length === 0) {
-    return backups;
-  }
-  
-  const filtered = new Map<string, BackupInfo>();
-  
-  for (const [id, backup] of backups.entries()) {
-    if (backup.metadata.tags?.some(tag => tags.includes(tag))) {
-      filtered.set(id, backup);
-    }
-  }
-  
-  return filtered;
-}
-
-export function filterByDateRange(
-  backups: Map<string, BackupInfo>,
-  afterDate?: string,
-  beforeDate?: string
-): Map<string, BackupInfo> {
-  const filtered = new Map<string, BackupInfo>();
-  
-  for (const [id, backup] of backups.entries()) {
-    const backupDate = new Date(backup.metadata.timestamp);
-    
-    if (afterDate && backupDate < new Date(afterDate)) {
-      continue;
-    }
-    
-    if (beforeDate && backupDate > new Date(beforeDate)) {
-      continue;
-    }
-    
-    filtered.set(id, backup);
-  }
-  
-  return filtered;
-}
-
-function matchesSearchTerm(backup: BackupInfo, term: string, searchIn: string[]): boolean {
-  if (searchIn.includes('all') || searchIn.includes('description')) {
-    if (backup.metadata.description?.toLowerCase().includes(term)) {
-      return true;
-    }
-  }
-
-  if (searchIn.includes('all') || searchIn.includes('tags')) {
-    if (backup.metadata.tags?.some(tag => typeof tag === 'string' && tag.toLowerCase().includes(term))) {
-      return true;
-    }
-  }
-
-  if (searchIn.includes('all') || searchIn.includes('filename')) {
-    if (backup.metadata.originalPath && path.basename(backup.metadata.originalPath).toLowerCase().includes(term)) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
-export function searchBackups(
-  backups: Map<string, BackupInfo>,
-  searchTerm: string,
-  searchIn: string[] = ['all']
-): Map<string, BackupInfo> {
-  const term = searchTerm.toLowerCase();
-  const filtered = new Map<string, BackupInfo>();
-  
-  for (const [id, backup] of backups.entries()) {
-    if (matchesSearchTerm(backup, term, searchIn)) {
-      filtered.set(id, backup);
-    }
-  }
-  
-  return filtered;
 }
