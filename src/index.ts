@@ -17,7 +17,7 @@ import {
   McpError,
   ReadResourceRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
-import { readFile } from './utils/fs.js';
+import { readFile, assertFileSize } from './utils/fs.js';
 import { BackupResource } from './types/index.js';
 import { BackupStore } from './utils/store.js';
 import { config, SERVER_VERSION } from './utils/config.js';
@@ -25,6 +25,7 @@ import { backupNotFoundError } from './utils/validate.js';
 import { allTools } from './tools/index.js';
 import { log } from './utils/logger.js';
 import { backupRateLimiter } from './utils/concurrency.js';
+import { MAX_PREVIEW_FILE_SIZE } from './operations/preview.js';
 
 export class BackupServer {
   private readonly server: McpServer;
@@ -42,7 +43,10 @@ export class BackupServer {
     this.setupHandlers();
     this.backups.startAutoSave(config.autoSaveIntervalMs);
 
+    let shuttingDown = false;
     const gracefulShutdown = async () => {
+      if (shuttingDown) return;
+      shuttingDown = true;
       this.backups.stopAutoSave();
       await this.backups.save();
       await this.server.close();
@@ -154,6 +158,7 @@ export class BackupServer {
       if (!backupInfo) throw backupNotFoundError(backupId);
 
       try {
+        await assertFileSize(backupInfo.backupPath, MAX_PREVIEW_FILE_SIZE, 'resource read');
         const content = (await readFile(backupInfo.backupPath)).toString('utf-8');
         return { contents: [{ uri, mimeType: "text/plain", text: content }] };
       } catch (error) {
