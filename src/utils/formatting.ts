@@ -92,14 +92,18 @@ export function formatBackupList(backups: BackupMetadata[]): string {
   
   const lines: string[] = [`📚 Found ${backups.length} backup${backups.length !== 1 ? 's' : ''}:\n`];
   
+  // Pre-compute timestamps once — avoids Date parsing inside the sort comparator.
+  const times = new Map<BackupMetadata, number>();
+  for (const backup of backups) {
+    times.set(backup, new Date(backup.timestamp).getTime());
+  }
+  
   for (const [filePath, fileBackups] of grouped.entries()) {
     lines.push(`\n🗂️  ${filePath} (${fileBackups.length} backup${fileBackups.length !== 1 ? 's' : ''}):`);
     lines.push('─'.repeat(50));
     
     // Sort by date (most recent first)
-    fileBackups.sort((a, b) => 
-      new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-    );
+    fileBackups.sort((a, b) => times.get(b)! - times.get(a)!);
     
     for (const backup of fileBackups) {
       lines.push(formatBackupEntry(backup));

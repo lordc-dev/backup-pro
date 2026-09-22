@@ -21,7 +21,7 @@ import {
   filterByDateRange,
   searchBackups,
   getAllTags,
-} from '../utils/persistence.js';
+} from '../operations/filter-utils.js';
 import { BackupStore } from '../utils/store.js';
 import { diffLines } from '../utils/myers-diff.js';
 import {

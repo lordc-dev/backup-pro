@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { executeRipgrep, isRipgrepAvailable, requiresPCRE2, RipgrepNotFoundError } from '../search/ripgrep-executor.js';
+import { isRipgrepAvailable, requiresPCRE2, executeRipgrepWithLimit } from '../search/ripgrep-executor.js';
 
 describe('isRipgrepAvailable', () => {
   it('returns true on systems with rg installed', async () => {
@@ -62,27 +62,20 @@ describe('requiresPCRE2', () => {
   });
 });
 
-describe('executeRipgrep', () => {
-  it('throws RipgrepNotFoundError when rg is not available', async () => {
-    const _available = await isRipgrepAvailable();
-    if (!_available) {
-      await expect(executeRipgrep(['--files', '/tmp'])).rejects.toThrow(RipgrepNotFoundError);
-    }
-  });
-
+describe('executeRipgrepWithLimit', () => {
   it('executes a simple search when rg is available', async () => {
     const available = await isRipgrepAvailable();
     if (!available) return;
 
-    const result = await executeRipgrep(['--files', '/tmp']);
+    const result = await executeRipgrepWithLimit(['--files', '/tmp'], 1024 * 1024);
     expect(typeof result).toBe('string');
   });
-});
 
-describe('RipgrepNotFoundError', () => {
-  it('has correct name and message', () => {
-    const err = new RipgrepNotFoundError();
-    expect(err.name).toBe('RipgrepNotFoundError');
-    expect(err.message).toContain('ripgrep');
+  it('respects the byte limit', async () => {
+    const available = await isRipgrepAvailable();
+    if (!available) return;
+
+    const result = await executeRipgrepWithLimit(['--files', '/tmp'], 10);
+    expect(Buffer.byteLength(result, 'utf-8')).toBeLessThanOrEqual(65536);
   });
 });

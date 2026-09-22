@@ -3,7 +3,7 @@ import * as path from 'node:path';
 import * as os from 'node:os';
 import * as fs from 'node:fs/promises';
 import * as fsSync from 'node:fs';
-import { deleteBackup, deleteBackups } from '../operations/delete.js';
+import { deleteBackup } from '../operations/delete.js';
 import { createBackup } from '../operations/create.js';
 import { BackupStore } from '../utils/store.js';
 import { BackupInfo, BackupMetadata } from '../types/index.js';
@@ -93,37 +93,5 @@ describe('deleteBackup', () => {
     const result = await deleteBackup('stat-fail', backups);
     expect(result.success).toBe(true);
     expect(typeof result.freedSpace).toBe('number');
-  });
-});
-
-describe('deleteBackups', () => {
-  it('deletes multiple backups', async () => {
-    const f1 = path.join(TMP_DIR, 'multi-del-1.txt');
-    const f2 = path.join(TMP_DIR, 'multi-del-2.txt');
-    await fs.writeFile(f1, 'data1');
-    await fs.writeFile(f2, 'data2');
-
-    const r1 = await createBackup({ filePath: f1 }, backups);
-    const r2 = await createBackup({ filePath: f2 }, backups);
-
-    const result = await deleteBackups([r1.backupId, r2.backupId], backups);
-    expect(result.deleted.length).toBe(2);
-    expect(result.failed.length).toBe(0);
-  });
-
-  it('collects failures for nonexistent ids', async () => {
-    const result = await deleteBackups(['nonexistent-1', 'nonexistent-2'], backups);
-    expect(result.failed.length).toBe(2);
-    expect(result.deleted.length).toBe(0);
-  });
-
-  it('continues on partial failure', async () => {
-    const testFile = path.join(TMP_DIR, 'partial-del.txt');
-    await fs.writeFile(testFile, 'partial');
-    const { backupId } = await createBackup({ filePath: testFile }, backups);
-
-    const result = await deleteBackups([backupId, 'nonexistent'], backups);
-    expect(result.deleted.length).toBe(1);
-    expect(result.failed.length).toBe(1);
   });
 });

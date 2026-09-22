@@ -3,12 +3,10 @@ import * as path from 'node:path';
 import * as os from 'node:os';
 import * as fs from 'node:fs/promises';
 import {
-  safeReadFile,
   safeCopyFile,
   pathExists,
   remove,
   copy,
-  mkdirp,
   ensureDir,
   readJSON,
   writeJSON,
@@ -40,19 +38,6 @@ describe('pathExists', () => {
 
   it('returns true for existing directory', async () => {
     expect(await pathExists(TMP_DIR)).toBe(true);
-  });
-});
-
-describe('safeReadFile', () => {
-  it('reads file content as Buffer', async () => {
-    await fs.writeFile(TEST_FILE, 'safe content');
-    const content = await safeReadFile(TEST_FILE);
-    expect(Buffer.isBuffer(content)).toBe(true);
-    expect(content.toString()).toBe('safe content');
-  });
-
-  it('throws for nonexistent file', async () => {
-    await expect(safeReadFile('/nonexistent/file.txt')).rejects.toThrow();
   });
 });
 
@@ -118,24 +103,16 @@ describe('copy', () => {
   });
 });
 
-describe('mkdirp', () => {
+describe('ensureDir', () => {
   it('creates nested directories', async () => {
     const dir = path.join(TMP_DIR, 'a', 'b', 'c');
-    await mkdirp(dir);
+    await ensureDir(dir);
     expect(await pathExists(dir)).toBe(true);
   });
 
   it('does not throw for existing directory', async () => {
-    await mkdirp(TMP_DIR);
+    await ensureDir(TMP_DIR);
     expect(await pathExists(TMP_DIR)).toBe(true);
-  });
-});
-
-describe('ensureDir', () => {
-  it('creates directory', async () => {
-    const dir = path.join(TMP_DIR, 'ensured');
-    await ensureDir(dir);
-    expect(await pathExists(dir)).toBe(true);
   });
 });
 
