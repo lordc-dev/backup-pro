@@ -1,6 +1,6 @@
 import { requireString, requireStringArray, backupNotFoundError } from '../utils/validate.js';
 import { addTagsToBackup, removeTagsFromBackup, getTags } from '../operations/index.js';
-import { formatTagList } from '../utils/index.js';
+import { formatTagList } from '../utils/formatting.js';
 import { ToolDefinition, textResult } from './types.js';
 
 export const listTagsTool: ToolDefinition = {

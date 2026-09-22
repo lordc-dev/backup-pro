@@ -66,41 +66,6 @@ export interface CleanupBackupsParams {
   excludeTags?: string[];
 }
 
-export interface DiffBackupParams {
-  backupId: string;
-  /** Optional: compare with another backup instead of current file */
-  compareWith?: string;
-}
-
-export interface PreviewBackupParams {
-  backupId: string;
-  /** Show first N lines */
-  head?: number;
-  /** Show last N lines */
-  tail?: number;
-  /** Maximum characters to return */
-  maxChars?: number;
-}
-
-export interface GetBackupParams {
-  backupId: string;
-}
-
-export interface DeleteBackupParams {
-  backupId: string;
-  /** Force deletion without warnings */
-  force?: boolean;
-}
-
-export interface RemoveTagsParams {
-  backupId: string;
-  tags: string[];
-}
-
-export interface VerifyBackupParams {
-  backupId: string;
-}
-
 export interface BatchBackupParams {
   filePaths: string[];
   description?: string;

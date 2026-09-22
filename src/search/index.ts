@@ -12,15 +12,11 @@ export type {
 
 export {
   rgArgs,
-  parseRipgrepLines,
 } from "./ripgrep-args.js";
 
 export {
-  RipgrepNotFoundError,
   isRipgrepAvailable,
-  ensureRipgrep,
   requiresPCRE2,
-  executeRipgrep,
   executeRipgrepWithLimit,
 } from "./ripgrep-executor.js";
 
@@ -29,8 +25,3 @@ export {
   type PatternValidationResult,
   type RegexValidationOptions,
 } from "../validation/regex-validation.js";
-
-export {
-  BaseError,
-  ECODE,
-} from "../errors/index.js";

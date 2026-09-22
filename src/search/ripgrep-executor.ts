@@ -15,7 +15,6 @@ import { spawn, execFile } from "node:child_process";
 import { promisify } from "node:util";
 
 import { log } from "../utils/logger.js";
-import { BaseError, ECODE } from "../errors/index.js";
 import { Semaphore } from "../utils/concurrency.js";
 
 const MAX_CONCURRENT_RG = (() => {
@@ -38,7 +37,6 @@ const CANDIDATE_PATHS = [
 ];
 
 let cachedRgPath: string | null | undefined = undefined;
-let pcre2Supported: boolean | undefined = undefined;
 
 function isDebugMode(): boolean {
   return (process.env.LOG_LEVEL || "info") === "debug";
@@ -90,27 +88,6 @@ export async function isRipgrepAvailable(): Promise<boolean> {
   return (await getRgPath()) !== null;
 }
 
-async function checkPcre2Support(): Promise<boolean> {
-  if (pcre2Supported !== undefined) return pcre2Supported;
-  const rgPath = await getRgPath();
-  if (!rgPath) { pcre2Supported = false; return false; }
-  try {
-    const result = await execFileAsync(rgPath, ['--pcre2', '--version']);
-    pcre2Supported = result.stdout.trim().length > 0;
-  } catch {
-    pcre2Supported = false;
-  }
-  return pcre2Supported;
-}
-
-export async function ensureRipgrep(): Promise<string> {
-  const rgExecutable = await getRgPath();
-  if (!rgExecutable) {
-    throw new RipgrepNotFoundError();
-  }
-  return rgExecutable;
-}
-
 export function requiresPCRE2(pattern: string): boolean {
   if (!pattern) return false;
   const pcre2Features = [
@@ -135,95 +112,19 @@ function buildFinalArgs(args: string[], pcre2: boolean): string[] {
   return pcre2 ? ["--pcre2", ...args] : args;
 }
 
-function handleRgResult(code: number | null, output: string, errorOutput: string, _args: string[], _timeout: number): string {
-  if (code === 0 || code === 1) {
-    return output;
-  }
-  const codeNum = code ?? -1;
-  throw new BaseError(`ripgrep exited with code ${codeNum}`, { context: { code: codeNum, stderr: errorOutput }, code: ECODE.SEARCH_EXEC });
-}
-
-export async function executeRipgrep(args: string[], pcre2 = false): Promise<string> {
-  const rgExecutable = await ensureRipgrep();
-
-  if (pcre2) {
-    const hasPcre2 = await checkPcre2Support();
-    if (!hasPcre2) {
-      throw new BaseError(
-        "ripgrep does not support PCRE2. Remove the pcre2 option or install a ripgrep version compiled with PCRE2 support.",
-          { context: { pcre2, args } }
-      );
-    }
-  }
-
-  await acquireSlot();
-
-  return new Promise((resolve, reject) => {
-    let output = "";
-    let errorOutput = "";
-    let timedOut = false;
-
-    const finalArgs = buildFinalArgs(args, pcre2);
-
-    if (isDebugMode()) {
-      log.debug("ripgrep", `${rgExecutable} ${finalArgs.join(" ")}`);
-    }
-
-    const rg = spawn(rgExecutable, finalArgs);
-
-    const timer = setTimeout(() => {
-      timedOut = true;
-      rg.kill("SIGTERM");
-    }, RG_TIMEOUT_MS);
-
-    rg.stdout.on("data", (data) => {
-      output += data.toString();
-    });
-
-    rg.stderr.on("data", (data) => {
-      errorOutput += data.toString();
-    });
-
-    rg.on("close", (code) => {
-      clearTimeout(timer);
-      releaseSlot();
-      if (timedOut) {
-        reject(new BaseError(`ripgrep timed out after ${RG_TIMEOUT_MS}ms`, { context: { args, timeout: RG_TIMEOUT_MS }, code: ECODE.SEARCH_TIMEOUT }));
-        return;
-      }
-      try {
-        resolve(handleRgResult(code, output, errorOutput, args, RG_TIMEOUT_MS));
-      } catch (err) {
-        reject(err);
-      }
-    });
-
-    rg.on("error", (err) => {
-      clearTimeout(timer);
-      releaseSlot();
-      reject(new BaseError("ripgrep spawn failed", { cause: err, code: ECODE.SEARCH_EXEC }));
-    });
-  });
-}
-
 export async function executeRipgrepWithLimit(
   args: string[],
   maxBytes: number,
   pcre2 = false
 ): Promise<string> {
-  const rgExecutable = await ensureRipgrep();
-
-  if (pcre2) {
-    const hasPcre2 = await checkPcre2Support();
-    if (!hasPcre2) {
-      throw new BaseError("ripgrep does not support PCRE2.", { context: { pcre2, args } });
-    }
-  }
+  const rgExecutable = await getRgPath();
+  if (!rgExecutable) return "";
 
   await acquireSlot();
 
   return new Promise((resolve) => {
     let output = "";
+    let totalBytes = 0;
     let killed = false;
     const finalArgs = buildFinalArgs(args, pcre2);
     const rg = spawn(rgExecutable, finalArgs);
@@ -238,7 +139,8 @@ export async function executeRipgrepWithLimit(
     rg.stdout.on("data", (data: Buffer) => {
       if (!killed) {
         output += data.toString();
-        if (Buffer.byteLength(output, "utf-8") > maxBytes) {
+        totalBytes += data.length;
+        if (totalBytes > maxBytes) {
           killed = true;
           rg.kill("SIGTERM");
         }

@@ -2,7 +2,7 @@ import { requireString, requireStringArray, optionalString, optionalStringArray,
 import { config } from '../utils/config.js';
 import { CreateBackupParams, RestoreBackupParams, CleanupBackupsParams, BatchBackupParams } from '../types/index.js';
 import { createBackup, restoreBackup, deleteBackup, cleanupBackups, batchBackup, previewBackup, diffBackup, formatBatchResult } from '../operations/index.js';
-import { formatFileSize, formatCleanupResult } from '../utils/index.js';
+import { formatFileSize, formatCleanupResult } from '../utils/formatting.js';
 import { ToolDefinition, textResult } from './types.js';
 
 export const createBackupTool: ToolDefinition = {

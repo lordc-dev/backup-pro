@@ -2,15 +2,11 @@
  * Ripgrep Arguments Builder
  *
  * Fluent API for constructing ripgrep command arguments.
+ * Only the methods used by search-content are kept.
  */
 
 export class RipgrepArgsBuilder {
   private args: string[] = [];
-
-  files(): this {
-    this.args.push("--files");
-    return this;
-  }
 
   json(): this {
     this.args.push("--json", "--no-heading", "--line-number");
@@ -19,11 +15,6 @@ export class RipgrepArgsBuilder {
 
   noMessages(): this {
     this.args.push("--no-messages");
-    return this;
-  }
-
-  hidden(): this {
-    this.args.push("--hidden");
     return this;
   }
 
@@ -37,33 +28,8 @@ export class RipgrepArgsBuilder {
     return this;
   }
 
-  maxDepth(depth: number): this {
-    if (depth !== undefined) this.args.push("--max-depth", depth.toString());
-    return this;
-  }
-
   maxCount(count: number): this {
     if (count > 0) this.args.push("--max-count", count.toString());
-    return this;
-  }
-
-  count(): this {
-    this.args.push("--count");
-    return this;
-  }
-
-  follow(enabled = true): this {
-    if (enabled) this.args.push("--follow");
-    return this;
-  }
-
-  fileType(type: string): this {
-    if (type) this.args.push("--type", type);
-    return this;
-  }
-
-  exclude(patterns: readonly string[] = []): this {
-    patterns.forEach(p => this.args.push("--glob", `!${p}`));
     return this;
   }
 
@@ -90,8 +56,4 @@ export class RipgrepArgsBuilder {
 
 export function rgArgs(): RipgrepArgsBuilder {
   return new RipgrepArgsBuilder();
-}
-
-export function parseRipgrepLines(output: string): string[] {
-  return output.trim().split("\n").filter(Boolean);
 }

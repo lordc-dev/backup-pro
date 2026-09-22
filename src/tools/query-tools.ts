@@ -1,7 +1,7 @@
 import { requireString, optionalString, optionalStringArray, optionalNumber, optionalBoolean, validateDateString, validatePositiveNumber, validateEnum, validateDateStringRecord } from '../utils/validate.js';
 import { ListBackupsParams, SearchBackupsParams } from '../types/index.js';
 import { listBackups, searchBackups, getBackup, getBackupStats, findDuplicates, verifyBackup, formatBackupDetails, formatVerifyResult, formatDuplicatesResult, searchBackupContent } from '../operations/index.js';
-import { formatBackupList, formatBackupStats } from '../utils/index.js';
+import { formatBackupList, formatBackupStats } from '../utils/formatting.js';
 import { ToolDefinition, textResult } from './types.js';
 
 export const listBackupsTool: ToolDefinition = {
