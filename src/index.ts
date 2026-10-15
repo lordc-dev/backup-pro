@@ -12,6 +12,7 @@ import {
   CallToolRequestSchema,
   ErrorCode,
   ListResourcesRequestSchema,
+  ListResourceTemplatesRequestSchema,
   ListToolsRequestSchema,
   ListPromptsRequestSchema,
   McpError,
@@ -96,6 +97,13 @@ export class BackupServer {
   }
 
   private setupResourceHandlers(): void {
+    // We advertise the resources capability, so clients probe
+    // resources/templates/list; answer with an empty list instead of
+    // letting the SDK return "Method not found".
+    this.server.server.setRequestHandler(ListResourceTemplatesRequestSchema, async () => ({
+      resourceTemplates: [],
+    }));
+
     this.server.server.setRequestHandler(ListResourcesRequestSchema, async () => {
       const resources: BackupResource[] = [];
       for (const [id, info] of this.backups.entries()) {
